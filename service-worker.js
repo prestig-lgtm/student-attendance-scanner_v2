@@ -1,4 +1,4 @@
-const CACHE_NAME = "psabe-ppg-attendance-v1";
+const CACHE_NAME = "psabe-ppg-attendance-v2";
 
 const FILES_TO_CACHE = [
     "./",
@@ -82,15 +82,13 @@ self.addEventListener("fetch", event => {
     /*
      * Only handle GET requests.
      *
-     * POST requests are used by your Google Apps Script
-     * attendance synchronization and should go directly
-     * to Google Apps Script.
+     * POST requests are used by Google Apps Script
+     * and must go directly to Google Apps Script.
      */
 
     if (event.request.method !== "GET") {
         return;
     }
-
 
     event.respondWith(
 
@@ -100,7 +98,6 @@ self.addEventListener("fetch", event => {
                 if (cachedResponse) {
                     return cachedResponse;
                 }
-
 
                 return fetch(event.request)
                     .then(networkResponse => {
