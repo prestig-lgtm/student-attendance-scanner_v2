@@ -362,44 +362,56 @@ button{cursor:pointer}
   margin:0 20px 8px;background:#03070a;height:225px;border-radius:17px;position:relative;
   display:block;overflow:hidden
 }
-/* The QR library creates the real camera <video> inside #reader.
-   Keep it as a full-size background layer; the scan frame is only an overlay. */
+/* REAL CAMERA: html5-qrcode inserts the device camera video here. */
 #reader{
   position:absolute !important;
   inset:0 !important;
   width:100% !important;
   height:100% !important;
+  max-width:none !important;
+  margin:0 !important;
   z-index:1 !important;
   overflow:hidden !important;
 }
-#reader video{
-  display:block !important;
+#reader > div{
   width:100% !important;
   height:100% !important;
-  object-fit:cover !important;
-}
-#reader > div{
   max-width:none !important;
+  margin:0 !important;
 }
+#reader__scan_region{
+  width:100% !important;
+  height:100% !important;
+  min-height:100% !important;
+  position:relative !important;
+}
+#reader video{
+  display:block !important;
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  max-width:none !important;
+  object-fit:cover !important;
+  z-index:1 !important;
+}
+/* Hide only the library's controls; never hide the camera video. */
 #reader__dashboard,
 #reader__dashboard_section,
 #reader__dashboard_section_csr,
 #reader__dashboard_section_swaplink{
   display:none !important;
 }
-#reader__scan_region{
-  width:100% !important;
-  min-height:100% !important;
-}
 #reader__scan_region img{
   display:none !important;
 }
 .scanner-window:before{
   content:"";position:absolute;inset:0;
-  background:
-    linear-gradient(rgba(0,230,104,.12) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,230,104,.12) 1px,transparent 1px);
+  background:linear-gradient(rgba(0,230,104,.08) 1px,transparent 1px),
+             linear-gradient(90deg,rgba(0,230,104,.08) 1px,transparent 1px);
   background-size:28px 28px;
+  z-index:2;
+  pointer-events:none;
 }
 .scan-frame{width:215px;height:190px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:4px solid #19ed67;border-radius:12px;z-index:3;pointer-events:none}
 .scan-frame:before,.scan-frame:after{
@@ -2598,140 +2610,172 @@ function onScanFailure(
 
 
 /* =====================================================
-   START QR SCANNER
+   START REAL CAMERA QR SCANNER
+   This section uses the device's actual camera.
 ===================================================== */
 
-let html5QrCodeScanner = null;
-let scannerStarted = false;
-let scannerStarting = false;
-
-function setScannerStatus(message, showButton = false) {
-    const status = document.getElementById("scannerStatus");
-    const button = document.getElementById("startCameraBtn");
-    if (status) status.textContent = message;
-    if (button) button.style.display = showButton ? "inline-block" : "none";
-}
+let qrCameraScanner = null;
+let qrCameraRunning = false;
+let qrCameraStarting = false;
 
 async function cleanupQrScanner() {
     try {
-        if (html5QrCodeScanner) {
-            await html5QrCodeScanner.stop().catch(() => {});
-            await html5QrCodeScanner.clear().catch(() => {});
+        if (qrCameraScanner) {
+            if (qrCameraRunning) {
+                await qrCameraScanner.stop().catch(() => {});
+            }
+            await qrCameraScanner.clear().catch(() => {});
         }
-    } catch (_) {}
-    html5QrCodeScanner = null;
+    } catch (error) {
+        console.warn("QR scanner cleanup error:", error);
+    }
+
+    qrCameraScanner = null;
+    qrCameraRunning = false;
 }
 
 async function startQrScanner(userRequested = false) {
-    if (scannerStarted || scannerStarting) return;
-    scannerStarting = true;
 
-    setScannerStatus(userRequested ? "Loading scanner…" : "Starting camera…", false);
-
-    /*
-     * Load the local GitHub copy first. If it is missing, the loader
-     * automatically falls back to the public CDN copy. This prevents
-     * the scanner from getting stuck on "Scanner library unavailable".
-     */
-    const libraryReady = await ensureQrLibrary();
-    if (!libraryReady || typeof Html5Qrcode === "undefined") {
-        scannerStarting = false;
-        setScannerStatus("Scanner library could not be loaded", true);
-        console.error("Html5Qrcode could not be loaded from the local file or CDN.");
+    if (qrCameraRunning || qrCameraStarting) {
         return;
     }
 
-    setScannerStatus(userRequested ? "Requesting camera access…" : "Starting camera…", false);
+    qrCameraStarting = true;
 
-    const config = {
-        fps: 10,
-        qrbox: { width: 200, height: 200 },
-        aspectRatio: 1.7777778,
-        disableFlip: false
-    };
+    const status = document.getElementById("scannerStatus");
+    const startButton = document.getElementById("startCameraBtn");
 
-    const startWith = async (cameraOrConstraint) => {
-        await cleanupQrScanner();
-        html5QrCodeScanner = new Html5Qrcode("reader");
-        await html5QrCodeScanner.start(
-            cameraOrConstraint,
-            config,
-            onScanSuccess,
-            onScanFailure
-        );
-    };
+    if (status) {
+        status.textContent = userRequested
+            ? "Requesting camera access…"
+            : "Starting camera…";
+        status.style.color = "#d97706";
+    }
+
+    if (startButton) {
+        startButton.style.display = "none";
+    }
 
     try {
-        /*
-         * Prefer a real camera ID. This is more reliable than
-         * { facingMode: { exact: "environment" } }, especially on
-         * desktop browsers and some mobile browsers.
-         */
+
+        /* Make sure the real QR decoder library is available. */
+        const libraryReady = await ensureQrLibrary();
+
+        if (!libraryReady || typeof Html5Qrcode === "undefined") {
+            throw new Error("QR scanner library could not be loaded.");
+        }
+
+        /* Create the camera scanner. */
+        qrCameraScanner = new Html5Qrcode("reader");
+
+        /* Ask the browser for actual physical cameras. */
         let cameras = [];
+
         try {
             cameras = await Html5Qrcode.getCameras();
         } catch (cameraListError) {
-            console.warn("Could not enumerate cameras yet:", cameraListError);
+            console.warn("Camera enumeration failed:", cameraListError);
         }
 
-        if (cameras && cameras.length > 0) {
+        /* Prefer the rear camera on phones. */
+        let cameraId = null;
+
+        if (cameras && cameras.length) {
             const rearCamera = cameras.find(camera =>
-                /back|rear|environment|world|traseira|trasera/i.test(camera.label || "")
+                /back|rear|environment|world|traseira|trasera/i.test(
+                    camera.label || ""
+                )
             );
-            const selectedCamera = rearCamera || cameras[cameras.length - 1];
-            await startWith(selectedCamera.id);
-        } else {
-            /* Fallback for browsers that hide camera IDs. */
-            await startWith({ facingMode: { ideal: "environment" } });
+
+            cameraId = (rearCamera || cameras[0]).id;
         }
 
-        scannerStarted = true;
-        scannerStarting = false;
-        setScannerStatus("Scanner Ready", false);
-        return;
+        const cameraSource = cameraId || {
+            facingMode: { ideal: "environment" }
+        };
 
-    } catch (firstError) {
-        console.warn("Primary QR camera start failed:", firstError);
+        /* Start the REAL video stream. */
+        await qrCameraScanner.start(
+            cameraSource,
+            {
+                fps: 10,
+                qrbox: {
+                    width: 200,
+                    height: 200
+                },
+                aspectRatio: 1.7777778,
+                disableFlip: false
+            },
+            onScanSuccess,
+            onScanFailure
+        );
 
-        try {
-            /* Second fallback: normal environment constraint. */
-            await startWith({ facingMode: "environment" });
+        qrCameraRunning = true;
+        qrCameraStarting = false;
 
-            scannerStarted = true;
-            scannerStarting = false;
-            setScannerStatus("Scanner Ready", false);
-            return;
+        if (status) {
+            status.textContent =
+                "● Camera ready — position QR Code within the square to scan";
+            status.style.color = "#16a34a";
+        }
 
-        } catch (secondError) {
-            console.error("QR scanner could not start:", secondError);
-            scannerStarting = false;
+        console.log(
+            "REAL CAMERA SCANNER STARTED",
+            cameraId || "environment camera"
+        );
 
-            let message = "Camera unavailable — allow camera access";
-            const errorText = String(secondError?.message || secondError || "").toLowerCase();
+    } catch (error) {
 
-            if (errorText.includes("permission") || errorText.includes("notallowed")) {
-                message = "Camera permission blocked — allow camera access";
-            } else if (errorText.includes("secure") || errorText.includes("https")) {
-                message = "Camera requires HTTPS — open the GitHub Pages site";
-            } else if (errorText.includes("notfound") || errorText.includes("no camera")) {
-                message = "No camera detected on this device";
+        console.error("Real camera scanner error:", error);
+
+        qrCameraStarting = false;
+        qrCameraRunning = false;
+
+        if (status) {
+            status.style.color = "#dc2626";
+
+            const text = String(
+                error && (error.message || error.name)
+                    ? (error.message || error.name)
+                    : error || ""
+            ).toLowerCase();
+
+            if (error && error.name === "NotAllowedError" || text.includes("permission")) {
+                status.textContent =
+                    "Camera permission denied — allow camera access and reload the page.";
+            } else if (error && error.name === "NotFoundError" || text.includes("not found")) {
+                status.textContent =
+                    "No camera detected on this device.";
+            } else if (error && error.name === "NotReadableError") {
+                status.textContent =
+                    "Camera is already being used by another application.";
+            } else if (text.includes("secure") || text.includes("https")) {
+                status.textContent =
+                    "Camera requires HTTPS — open the GitHub Pages site.";
+            } else {
+                status.textContent =
+                    "Unable to start camera — allow camera access and try again.";
             }
-
-            setScannerStatus(message, true);
         }
+
+        if (startButton) {
+            startButton.style.display = "inline-block";
+        }
+
+        await cleanupQrScanner();
     }
 }
 
-window.addEventListener("load", () => {
-    setTimeout(() => startQrScanner(false), 700);
-});
+async function stopQrScanner() {
+    await cleanupQrScanner();
+}
 
-/*
- * Do not attach a document-wide click handler here. It can accidentally
- * intercept the first tap on the Student ID field or SUBMIT button.
- * Camera access is requested automatically where the browser permits it;
- * otherwise the dedicated START CAMERA button handles the user gesture.
- */
+/* Start the actual camera after the page has loaded. */
+window.addEventListener("load", function() {
+    setTimeout(function() {
+        startQrScanner(false);
+    }, 700);
+});
 
 /* =====================================================
    SAVE LOCAL RECORDS
