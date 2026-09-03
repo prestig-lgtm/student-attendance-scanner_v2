@@ -978,7 +978,7 @@ button{cursor:pointer}
     <div>
       <div class="kicker">PSABE-PPG CSU CHAPTER</div>
       <div class="title">ATTENDANCE<br>SYSTEM</div>
-      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Pre Professional Group<br>Caraga State University Chapter</div>
+      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Philippine Professional Group<br>Caraga State University Chapter</div>
     </div>
   </div>
   <div class="status-stack">
@@ -1899,7 +1899,7 @@ function updateConnectionStatus() {
     if (navigator.onLine) {
 
         status.textContent =
-            "Online";
+            "● Internet connected";
 
         status.style.color =
             "#16a34a";
@@ -1909,7 +1909,7 @@ function updateConnectionStatus() {
     else {
 
         status.textContent =
-            "OFFLINE — Attendance stored locally";
+            "● OFFLINE — Attendance stored locally";
 
         status.style.color =
             "#dc2626";
@@ -2013,38 +2013,27 @@ async function processStudent(studentId) {
         const today = getToday();
         const currentTime = getCurrentTime();
 
-        // Get the authoritative student name from the year-level masterlist.
-        let serverStudent = await lookupStudentFromServer(studentId);
-        let studentName = serverStudent && serverStudent.success === true
-            ? (serverStudent.studentName || "")
-            : "";
-
-        // Offline fallback: use a previously cached name for this ID.
-        if (!studentName) {
-            const cached = attendanceRecords.find(r =>
-                String(r.studentId).toUpperCase() === studentId.toUpperCase() && r.studentName
-            );
-            if (cached) studentName = cached.studentName;
-        }
-
-        if (navigator.onLine && serverStudent && serverStudent.success === false && !serverStudent.lookupError) {
-            playErrorSound();
-            showStudentPreview(studentId, "Student ID not found", "Please check the ID number.");
-            showMessage("Student ID " + studentId + " was not found in the masterlist.", "error");
-            return;
-        }
-
-        showStudentPreview(
-            studentId,
-            studentName || "Student name unavailable offline",
-            "ID Number: " + studentId
-        );
-
+        /*
+         * IMPORTANT PERFORMANCE CHANGE:
+         * Do not wait for Google Sheets before updating the screen.
+         * Attendance is written to localStorage and the table is refreshed
+         * immediately. Google lookup/synchronization happens in the background.
+         */
         let record = attendanceRecords.find(r =>
-            String(r.studentId).toUpperCase() === studentId.toUpperCase() &&
+            String(r.studentId || "").trim().toUpperCase() === studentId.toUpperCase() &&
             r.date === today &&
             (r.sheetId || attendanceSheets[0].id) === activeSheet.id
         );
+
+        /* Use a cached name immediately if one is already available. */
+        let studentName = record && record.studentName ? record.studentName : "";
+        if (!studentName) {
+            const cached = attendanceRecords.find(r =>
+                String(r.studentId || "").trim().toUpperCase() === studentId.toUpperCase() &&
+                r.studentName
+            );
+            if (cached) studentName = cached.studentName;
+        }
 
         /* =================================================
            TIME IN
@@ -2052,7 +2041,10 @@ async function processStudent(studentId) {
         if (attendanceMode === "TIME IN") {
             if (record && record.status === "COMPLETED") {
                 playErrorSound();
-                showStudentInfo(studentId, "Name: " + (record.studentName || studentName || "—") + " — Attendance already completed.");
+                showStudentInfo(
+                    studentId,
+                    "Name: " + (record.studentName || studentName || "—") + " — Attendance already completed."
+                );
                 showMessage("Attendance already completed for today.", "info");
                 return;
             }
@@ -2080,29 +2072,12 @@ async function processStudent(studentId) {
             } else {
                 record.studentName = record.studentName || studentName;
             }
-
-            saveRecords();
-            displayAttendance();
-            playScannerBeep();
-
-            showStudentInfo(
-                studentId,
-                "Name: " + (record.studentName || "—") + "\nTime In: " + record.timeIn + " — PRESENT"
-            );
-            showMessage(
-                (record.studentName ? record.studentName + " — " : "") + "Time In saved locally.",
-                "success"
-            );
-
-            syncSingleRecord(record);
-            return;
         }
 
         /* =================================================
            TIME OUT
         ================================================= */
         if (attendanceMode === "TIME OUT") {
-            // No Time In: Time Out is allowed, but status becomes Incomplete/Late.
             if (!record || !record.timeIn) {
                 if (!record) {
                     record = {
@@ -2125,64 +2100,112 @@ async function processStudent(studentId) {
                     record.status = "INCOMPLETE";
                     record.synced = false;
                 }
-
-                saveRecords();
-                displayAttendance();
+            } else if (record.status === "COMPLETED") {
+                playErrorSound();
                 showStudentInfo(
                     studentId,
-                    "Name: " + (record.studentName || "—") + "\nTime Out: " + record.timeOut + " — INCOMPLETE/LATE (NO TIME IN)"
+                    "Name: " + (record.studentName || studentName || "—") + " — Attendance already completed."
                 );
-                showMessage(
-                    (record.studentName ? record.studentName + " — " : "") + "Time Out saved — INCOMPLETE/LATE (NO TIME IN).",
-                    "info"
-                );
-                syncSingleRecord(record);
-                return;
-            }
-
-            if (record.status === "COMPLETED") {
-                playErrorSound();
-                showStudentInfo(studentId, "Name: " + (record.studentName || studentName || "—") + " — Attendance already completed.");
                 showMessage("Attendance already completed for today.", "info");
                 return;
+            } else {
+                const elapsed = minutesBetweenTimes(record.timeIn, currentTime);
+                if (elapsed < 60) {
+                    const remaining = Math.max(1, 60 - elapsed);
+                    playErrorSound();
+                    showStudentInfo(
+                        studentId,
+                        "Name: " + (record.studentName || studentName || "—") +
+                        "\nTime In: " + record.timeIn +
+                        "\nTime Out is available after 1 hour. Please wait about " + remaining + " minute(s)."
+                    );
+                    showMessage(
+                        "Time Out not allowed yet. The student must complete at least 1 hour after Time In.",
+                        "error"
+                    );
+                    return;
+                }
+
+                record.studentName = record.studentName || studentName;
+                record.timeOut = currentTime;
+                record.status = "COMPLETED";
+                record.remark = "";
+                record.synced = false;
             }
-
-            const elapsed = minutesBetweenTimes(record.timeIn, currentTime);
-            if (elapsed < 60) {
-                const remaining = Math.max(1, 60 - elapsed);
-                playErrorSound();
-                showStudentInfo(
-                    studentId,
-                    "Name: " + (record.studentName || studentName || "—") + "\nTime In: " + record.timeIn + "\nTime Out is available after 1 hour. Please wait about " + remaining + " minute(s)."
-                );
-                showMessage(
-                    "Time Out not allowed yet. The student must complete at least 1 hour after Time In.",
-                    "error"
-                );
-                return;
-            }
-
-            record.studentName = record.studentName || studentName;
-            record.timeOut = currentTime;
-            record.status = "COMPLETED";
-            record.remark = "";
-            record.synced = false;
-
-            saveRecords();
-            displayAttendance();
-            playScannerBeep();
-
-            showStudentInfo(
-                studentId,
-                "Name: " + (record.studentName || "—") + "\nTime Out: " + record.timeOut + " — COMPLETED"
-            );
-            showMessage(
-                (record.studentName ? record.studentName + " — " : "") + "Time Out saved locally — COMPLETED.",
-                "success"
-            );
-            syncSingleRecord(record);
         }
+
+        /* =================================================
+           INSTANT LOCAL UPDATE
+        ================================================= */
+        saveRecords();
+        displayAttendance();
+        if (typeof renderRecentAttendance === "function") renderRecentAttendance();
+        if (typeof updateScreenshotStats === "function") updateScreenshotStats();
+        playScannerBeep();
+
+        const resultStatus = record.status || calculateLocalStatus(record.timeIn, record.timeOut);
+        showStudentInfo(
+            studentId,
+            "Name: " + (record.studentName || "Fetching name…") +
+            "\n" + attendanceMode + ": " + (record.timeOut && attendanceMode === "TIME OUT" ? record.timeOut : record.timeIn) +
+            " — " + resultStatus
+        );
+        showMessage(
+            (record.studentName ? record.studentName + " — " : "") +
+            attendanceMode + " saved instantly. Syncing in background…",
+            "success"
+        );
+
+        /*
+         * Fetch the authoritative name without blocking the attendance UI.
+         * Once the lookup returns, update the name and synchronize in the
+         * background. If the lookup fails because the network is unavailable,
+         * the record stays local and the normal retry queue handles it.
+         */
+        const lookupTask = navigator.onLine
+            ? lookupStudentFromServer(studentId)
+            : Promise.resolve(null);
+
+        lookupTask.then(serverStudent => {
+            if (serverStudent && serverStudent.success === true) {
+                const serverName = serverStudent.studentName || "";
+                if (serverName) {
+                    record.studentName = serverName;
+                    saveRecords();
+                    displayAttendance();
+                    if (typeof renderRecentAttendance === "function") renderRecentAttendance();
+                }
+
+                return syncSingleRecord(record);
+            }
+
+            /* A real lookup rejection means the ID is not in the masterlist. */
+            if (serverStudent && serverStudent.success === false && !serverStudent.lookupError) {
+                const index = attendanceRecords.indexOf(record);
+                if (index >= 0 && record.synced !== true) {
+                    attendanceRecords.splice(index, 1);
+                    saveRecords();
+                    displayAttendance();
+                    if (typeof renderRecentAttendance === "function") renderRecentAttendance();
+                }
+
+                playErrorSound();
+                showStudentPreview(studentId, "Student ID not found", "Please check the ID number.");
+                showMessage("Student ID " + studentId + " was not found in the masterlist.", "error");
+                return false;
+            }
+
+            /* Network/lookup failure: keep the instant local record. */
+            return syncSingleRecord(record);
+        }).catch(error => {
+            console.warn("Background student lookup failed:", error);
+            syncSingleRecord(record);
+        });
+
+        return;
+
     } finally {
+        /* Release immediately; network work continues in the background. */
         isProcessing = false;
     }
 }
@@ -3270,17 +3293,48 @@ if (
 
 
 /* UI ENHANCEMENTS */
-function updateLiveClock() {
-  const now = new Date();
-  const clock = document.getElementById("liveClock");
-  if (clock) {
-    clock.textContent = now.toLocaleTimeString([], {
-      hour: "2-digit", minute: "2-digit", second: "2-digit"
-    });
+/* LIVE CLOCK — runs independently so other app code cannot prevent it. */
+(function startLiveClock() {
+  function updateLiveClock() {
+    const clock = document.getElementById("liveClock");
+    const dateEl = document.getElementById("currentDate");
+    if (!clock) return;
+
+    try {
+      const now = new Date();
+
+      clock.textContent = new Intl.DateTimeFormat("en-PH", {
+        timeZone: "Asia/Manila",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      }).format(now);
+
+      if (dateEl) {
+        dateEl.textContent = new Intl.DateTimeFormat("en-PH", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        }).format(now);
+      }
+    } catch (error) {
+      console.error("Live clock error:", error);
+    }
   }
-}
-setInterval(updateLiveClock, 1000);
-updateLiveClock();
+
+  /* Start immediately if the header already exists. */
+  updateLiveClock();
+
+  /* Keep it ticking every second. */
+  setInterval(updateLiveClock, 1000);
+
+  /* Refresh when the page becomes visible again. */
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden) updateLiveClock();
+  });
+})();
 
 function updatePendingCount() {
   const el = document.getElementById("pendingCount");
@@ -3688,15 +3742,15 @@ updateActiveSheetUI();
 
   window.renderRecentAttendance=renderRecentAttendance;
   window.updateScreenshotStats=updateScreenshotStats;
-  window.addEventListener("load",()=>setTimeout(()=>{
+  window.addEventListener("load",()=>{
     renderRecentAttendance();
     updateScreenshotStats();
     loadServerAttendanceSheets();
-    setTimeout(loadServerRecordsForActiveSheet, 1000);
-  },350));
+    loadServerRecordsForActiveSheet();
+  });
   window.addEventListener("online",()=>{
     loadServerAttendanceSheets();
-    setTimeout(loadServerRecordsForActiveSheet, 800);
+    loadServerRecordsForActiveSheet();
   });
 })();
 
