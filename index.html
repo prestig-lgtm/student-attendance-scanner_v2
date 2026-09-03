@@ -257,7 +257,30 @@
 <meta name="theme-color" content="#003c2b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>PSABE-PPG CSU Chapter — Attendance System</title>
-<script src="./html5-qrcode.min.js" type="text/javascript"></script>
+<script>
+/* QR library loader: local GitHub copy first, CDN fallback if the local file is missing. */
+window.__qrLibraryPromise = null;
+function ensureQrLibrary() {
+  if (typeof Html5Qrcode !== "undefined") return Promise.resolve(true);
+  if (window.__qrLibraryPromise) return window.__qrLibraryPromise;
+  window.__qrLibraryPromise = new Promise((resolve) => {
+    const load = (src, fallback) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = () => resolve(typeof Html5Qrcode !== "undefined");
+      script.onerror = () => {
+        if (fallback) fallback();
+        else resolve(false);
+      };
+      document.head.appendChild(script);
+    };
+    load("./html5-qrcode.min.js", () => {
+      load("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js", null);
+    });
+  });
+  return window.__qrLibraryPromise;
+}
+</script>
 <style>
 :root{
   --green-950:#002b20; --green-900:#003c2b; --green-800:#00543b;
@@ -336,7 +359,7 @@ button{cursor:pointer}
 }
 .card-head .chev{font-size:29px}
 .scanner-window{
-  margin:0 20px 8px;background:#03070a;height:270px;border-radius:17px;position:relative;
+  margin:0 20px 8px;background:#03070a;height:225px;border-radius:17px;position:relative;
   display:grid;place-items:center;overflow:hidden
 }
 .scanner-window:before{
@@ -346,7 +369,7 @@ button{cursor:pointer}
     linear-gradient(90deg,rgba(0,230,104,.12) 1px,transparent 1px);
   background-size:28px 28px;
 }
-.scan-frame{width:290px;height:240px;position:relative;border:4px solid #19ed67;border-radius:12px;z-index:2}
+.scan-frame{width:215px;height:190px;position:relative;border:4px solid #19ed67;border-radius:12px;z-index:2}
 .scan-frame:before,.scan-frame:after{
   content:"";position:absolute;inset:-4px;border-radius:12px;
   border-top:0;border-bottom:0;
@@ -363,7 +386,7 @@ button{cursor:pointer}
 .c3{left:-6px;bottom:-6px;border-width:0 0 5px 5px}.c4{right:-6px;bottom:-6px;border-width:0 5px 5px 0}
 .scanner-status{text-align:center;font-size:15px;color:#4d5a54;padding:0 10px 9px}
 .scanner-status b{color:#16a84f}
-.manual-section{border-top:1px solid #dce3df;padding:13px 26px}
+.manual-section{border-top:1px solid #dce3df;padding:13px 26px;position:relative;z-index:20;pointer-events:auto;background:#fff}
 .manual-title,.sound-title{display:flex;align-items:center;gap:12px;font-weight:900;font-size:16px;margin-bottom:9px}
 .manual-row{display:grid;grid-template-columns:1fr 210px;gap:10px}
 .manual-row input{
@@ -481,7 +504,7 @@ button{cursor:pointer}
   .clock-row{font-size:16px}.clock-icon{font-size:21px}#currentDate{font-size:11px;margin-left:0}
   .stats{gap:10px}.stat-card{min-height:125px;padding:13px;border-radius:16px;gap:9px}.stat-card.incomplete{min-height:70px}
   .stat-icon{width:39px;height:39px;font-size:21px}.stat-label{font-size:12px;margin-top:2px}.stat-value{font-size:29px;margin-top:5px}.stat-desc{font-size:11px}
-  .card{border-radius:15px}.card-head,.recent-head{padding:0 15px}.scanner-window{margin:0 10px 7px;height:230px}.scan-frame{width:250px;height:205px}.manual-section,.sound{padding-left:15px;padding-right:15px}
+  .card{border-radius:15px}.card-head,.recent-head{padding:0 15px}.scanner-window{margin:0 10px 7px;height:205px}.scan-frame{width:190px;height:175px}.manual-section,.sound{padding-left:15px;padding-right:15px}
   .manual-row{grid-template-columns:1fr 105px}.sound-row{gap:7px}.sound-btn{font-size:11px}
   .recent-list{padding-left:10px;padding-right:10px}.recent-row{grid-template-columns:28px 1fr 1fr 90px;height:45px;font-size:11px}.times{font-size:10px}.badge{padding:5px 8px}
   .action-row{gap:10px}.action{height:60px;padding:0 14px}.action strong{font-size:12px}.action span{font-size:10px}.action .bigicon{font-size:23px}
@@ -909,7 +932,7 @@ button{cursor:pointer}
     <div>
       <div class="kicker">PSABE-PPG CSU CHAPTER</div>
       <div class="title">ATTENDANCE<br>SYSTEM</div>
-      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Philippine Professional Group<br>Caraga State University Chapter</div>
+      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Pre Professional Group<br>Caraga State University Chapter</div>
     </div>
   </div>
   <div class="status-stack">
@@ -951,12 +974,16 @@ button{cursor:pointer}
         <i class="scan-corner c1"></i><i class="scan-corner c2"></i><i class="scan-corner c3"></i><i class="scan-corner c4"></i>
       </div>
     </div>
-    <div class="scanner-status"><b>●</b> <span id="scannerStatus">Scanner Ready</span><br><span style="font-weight:400">Position QR Code within the square to scan</span></div>
+    <div class="scanner-status">
+      <b>●</b> <span id="scannerStatus">Starting camera…</span><br>
+      <span style="font-weight:400">Position QR Code within the square to scan</span>
+      <button id="startCameraBtn" type="button" onclick="startQrScanner(true)" style="display:none;margin:10px auto 0;padding:9px 16px;border:0;border-radius:9px;background:#08a84f;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15)">START CAMERA</button>
+    </div>
 
     <div class="manual-section">
       <div class="manual-title">🖉 &nbsp; MANUAL ENTRY</div>
       <div class="manual-row">
-        <input id="studentIdInput" type="text" placeholder="Enter Student ID Number">
+        <input id="studentIdInput" type="text" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="0" placeholder="Enter Student ID Number">
         <button class="submit-btn" onclick="processManualID()">SUBMIT</button>
       </div>
       <div class="helper">Use manual entry if QR code cannot be scanned.</div>
@@ -1139,10 +1166,12 @@ async function lookupStudentFromServer(studentId) {
             action: "LOOKUP",
             studentId: studentId
         });
-        return result && result.success ? result : null;
+        if (result && result.success === true) return result;
+        if (result && result.success === false) return result;
+        return { lookupError: true };
     } catch (error) {
-        console.warn("Student lookup failed:", error);
-        return null;
+        console.warn("Student lookup failed; allowing offline-first entry:", error);
+        return { lookupError: true };
     }
 }
 
@@ -1824,7 +1853,7 @@ function updateConnectionStatus() {
     if (navigator.onLine) {
 
         status.textContent =
-            "● Internet connected";
+            "Online";
 
         status.style.color =
             "#16a34a";
@@ -1834,7 +1863,7 @@ function updateConnectionStatus() {
     else {
 
         status.textContent =
-            "● OFFLINE — Attendance stored locally";
+            "OFFLINE — Attendance stored locally";
 
         status.style.color =
             "#dc2626";
@@ -1940,7 +1969,9 @@ async function processStudent(studentId) {
 
         // Get the authoritative student name from the year-level masterlist.
         let serverStudent = await lookupStudentFromServer(studentId);
-        let studentName = serverStudent ? serverStudent.studentName : "";
+        let studentName = serverStudent && serverStudent.success === true
+            ? (serverStudent.studentName || "")
+            : "";
 
         // Offline fallback: use a previously cached name for this ID.
         if (!studentName) {
@@ -1950,7 +1981,7 @@ async function processStudent(studentId) {
             if (cached) studentName = cached.studentName;
         }
 
-        if (navigator.onLine && !serverStudent) {
+        if (navigator.onLine && serverStudent && serverStudent.success === false && !serverStudent.lookupError) {
             playErrorSound();
             showStudentPreview(studentId, "Student ID not found", "Please check the ID number.");
             showMessage("Student ID " + studentId + " was not found in the masterlist.", "error");
@@ -2187,19 +2218,12 @@ async function syncSingleRecord(record) {
                 updateActiveSheetUI();
             }
 
-            const localRecord = attendanceRecords.find(r =>
-                r.studentId === record.studentId &&
-                r.date === record.date &&
-                r.sheetId === record.sheetId
-            );
-
-            if (localRecord) {
-                localRecord.studentName = result.studentName || localRecord.studentName;
-                localRecord.synced = true;
-                localRecord.status = result.status || localRecord.status;
-                saveRecords();
-                displayAttendance();
-            }
+            record.studentName = result.studentName || record.studentName;
+            record.synced = true;
+            record.status = result.status || record.status;
+            saveRecords();
+            displayAttendance();
+            if (typeof renderRecentAttendance === "function") renderRecentAttendance();
 
             return true;
         }
@@ -2399,45 +2423,34 @@ window.addEventListener(
    MANUAL ID
 ===================================================== */
 
-function processManualID() {
+async function processManualID() {
+    const input = document.getElementById("studentIdInput");
+    if (!input) return;
 
-    const input =
-        document.getElementById(
-            "studentIdInput"
-        );
-
-
-    const studentId =
-        input.value.trim();
-
-
+    const studentId = input.value.trim();
     if (!studentId) {
-
         playErrorSound();
-
-
-        showMessage(
-            "Please enter a Student ID.",
-            "error"
-        );
-
-
+        showMessage("Please enter a Student ID.", "error");
+        input.focus();
         return;
-
     }
-
 
     playScannerBeep();
 
-
-    processStudent(
-        studentId
-    );
-
-
-    input.value =
-        "";
-
+    try {
+        // Wait for the attendance transaction to finish before clearing the
+        // field. This also guarantees the recent attendance list is refreshed.
+        await processStudent(studentId);
+    } catch (error) {
+        console.error("Manual attendance submission failed:", error);
+        showMessage("Unable to process Student ID. Please try again.", "error");
+    } finally {
+        displayAttendance();
+        if (typeof renderRecentAttendance === "function") renderRecentAttendance();
+        if (typeof updateScreenshotStats === "function") updateScreenshotStats();
+        input.value = "";
+        input.focus();
+    }
 }
 
 
@@ -2445,6 +2458,19 @@ function processManualID() {
    ENTER KEY
 ===================================================== */
 
+document
+    .getElementById(
+        "studentIdInput"
+    )
+    .addEventListener(
+        "click",
+        function(event) {
+            event.stopPropagation();
+            this.focus();
+        }
+    );
+
+// Keep typing inside the manual ID field independent of the QR scanner.
 document
     .getElementById(
         "studentIdInput"
@@ -2545,73 +2571,135 @@ function onScanFailure(
 
 let html5QrCodeScanner = null;
 let scannerStarted = false;
+let scannerStarting = false;
 
-async function startQrScanner() {
+function setScannerStatus(message, showButton = false) {
+    const status = document.getElementById("scannerStatus");
+    const button = document.getElementById("startCameraBtn");
+    if (status) status.textContent = message;
+    if (button) button.style.display = showButton ? "inline-block" : "none";
+}
 
-    if (scannerStarted) return;
+async function cleanupQrScanner() {
+    try {
+        if (html5QrCodeScanner) {
+            await html5QrCodeScanner.stop().catch(() => {});
+            await html5QrCodeScanner.clear().catch(() => {});
+        }
+    } catch (_) {}
+    html5QrCodeScanner = null;
+}
 
-    if (typeof Html5Qrcode === "undefined") {
-        const status = document.getElementById("scannerStatus");
-        if (status) status.textContent = "Scanner library unavailable";
+async function startQrScanner(userRequested = false) {
+    if (scannerStarted || scannerStarting) return;
+    scannerStarting = true;
+
+    setScannerStatus(userRequested ? "Loading scanner…" : "Starting camera…", false);
+
+    /*
+     * Load the local GitHub copy first. If it is missing, the loader
+     * automatically falls back to the public CDN copy. This prevents
+     * the scanner from getting stuck on "Scanner library unavailable".
+     */
+    const libraryReady = await ensureQrLibrary();
+    if (!libraryReady || typeof Html5Qrcode === "undefined") {
+        scannerStarting = false;
+        setScannerStatus("Scanner library could not be loaded", true);
+        console.error("Html5Qrcode could not be loaded from the local file or CDN.");
         return;
     }
 
+    setScannerStatus(userRequested ? "Requesting camera access…" : "Starting camera…", false);
+
     const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        qrbox: { width: 200, height: 200 },
         aspectRatio: 1.7777778,
         disableFlip: false
     };
 
-    try {
+    const startWith = async (cameraOrConstraint) => {
+        await cleanupQrScanner();
         html5QrCodeScanner = new Html5Qrcode("reader");
-
         await html5QrCodeScanner.start(
-            { facingMode: { exact: "environment" } },
+            cameraOrConstraint,
             config,
             onScanSuccess,
             onScanFailure
         );
+    };
+
+    try {
+        /*
+         * Prefer a real camera ID. This is more reliable than
+         * { facingMode: { exact: "environment" } }, especially on
+         * desktop browsers and some mobile browsers.
+         */
+        let cameras = [];
+        try {
+            cameras = await Html5Qrcode.getCameras();
+        } catch (cameraListError) {
+            console.warn("Could not enumerate cameras yet:", cameraListError);
+        }
+
+        if (cameras && cameras.length > 0) {
+            const rearCamera = cameras.find(camera =>
+                /back|rear|environment|world|traseira|trasera/i.test(camera.label || "")
+            );
+            const selectedCamera = rearCamera || cameras[cameras.length - 1];
+            await startWith(selectedCamera.id);
+        } else {
+            /* Fallback for browsers that hide camera IDs. */
+            await startWith({ facingMode: { ideal: "environment" } });
+        }
 
         scannerStarted = true;
-        const status = document.getElementById("scannerStatus");
-        if (status) status.textContent = "Scanner Ready";
+        scannerStarting = false;
+        setScannerStatus("Scanner Ready", false);
+        return;
 
-    } catch (environmentError) {
-        /* Some phones/browsers do not accept exact environment mode. */
+    } catch (firstError) {
+        console.warn("Primary QR camera start failed:", firstError);
+
         try {
-            if (html5QrCodeScanner) {
-                await html5QrCodeScanner.stop().catch(() => {});
-                await html5QrCodeScanner.clear().catch(() => {});
-            }
-            html5QrCodeScanner = new Html5Qrcode("reader");
-
-            await html5QrCodeScanner.start(
-                { facingMode: "environment" },
-                config,
-                onScanSuccess,
-                onScanFailure
-            );
+            /* Second fallback: normal environment constraint. */
+            await startWith({ facingMode: "environment" });
 
             scannerStarted = true;
-            const status = document.getElementById("scannerStatus");
-            if (status) status.textContent = "Scanner Ready";
-        } catch (cameraError) {
-            console.error("QR scanner could not start:", cameraError);
-            const status = document.getElementById("scannerStatus");
-            if (status) status.textContent = "Camera unavailable — allow camera access";
+            scannerStarting = false;
+            setScannerStatus("Scanner Ready", false);
+            return;
+
+        } catch (secondError) {
+            console.error("QR scanner could not start:", secondError);
+            scannerStarting = false;
+
+            let message = "Camera unavailable — allow camera access";
+            const errorText = String(secondError?.message || secondError || "").toLowerCase();
+
+            if (errorText.includes("permission") || errorText.includes("notallowed")) {
+                message = "Camera permission blocked — allow camera access";
+            } else if (errorText.includes("secure") || errorText.includes("https")) {
+                message = "Camera requires HTTPS — open the GitHub Pages site";
+            } else if (errorText.includes("notfound") || errorText.includes("no camera")) {
+                message = "No camera detected on this device";
+            }
+
+            setScannerStatus(message, true);
         }
     }
 }
 
 window.addEventListener("load", () => {
-    setTimeout(startQrScanner, 250);
+    setTimeout(() => startQrScanner(false), 700);
 });
 
-// Start on first user interaction too; this helps browsers that defer camera permission.
-document.addEventListener("click", () => {
-    if (!scannerStarted) startQrScanner();
-}, { once: true });
+/*
+ * Do not attach a document-wide click handler here. It can accidentally
+ * intercept the first tap on the Student ID field or SUBMIT button.
+ * Camera access is requested automatically where the browser permits it;
+ * otherwise the dedicated START CAMERA button handles the user gesture.
+ */
 
 /* =====================================================
    SAVE LOCAL RECORDS
