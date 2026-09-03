@@ -551,7 +551,7 @@ button{cursor:pointer}
   .stats{gap:10px}.stat-card{min-height:125px;padding:13px;border-radius:16px;gap:9px}.stat-card.incomplete{min-height:70px}
   .stat-icon{width:39px;height:39px;font-size:21px}.stat-label{font-size:12px;margin-top:2px}.stat-value{font-size:29px;margin-top:5px}.stat-desc{font-size:11px}
   .card{border-radius:15px}.card-head,.recent-head{padding:0 15px}.scanner-window{margin:0 10px 7px;height:205px}.scan-frame{width:190px;height:175px}.manual-section,.sound{padding-left:15px;padding-right:15px}
-  .manual-row{grid-template-columns:1fr 105px}.sound-row{gap:7px}.sound-btn{font-size:11px}
+  .manual-row{grid-template-columns:1fr}.manual-row input{width:100%;min-width:0;box-sizing:border-box}.submit-btn{width:100%;min-height:52px;font-size:15px;cursor:pointer}.sound-row{gap:7px}.sound-btn{font-size:11px}
   .recent-list{padding-left:10px;padding-right:10px}.recent-row{grid-template-columns:28px 1fr 1fr 90px;height:45px;font-size:11px}.times{font-size:10px}.badge{padding:5px 8px}
   .action-row{gap:10px}.action{height:60px;padding:0 14px}.action strong{font-size:12px}.action span{font-size:10px}.action .bigicon{font-size:23px}
   .bottom-nav{bottom:7px;width:calc(100% - 16px);height:67px}.nav-item{font-size:9px}.nav-item .ni{font-size:20px}.scan-circle{width:68px;height:68px}.scan-circle .ni{font-size:23px}
@@ -987,8 +987,8 @@ button{cursor:pointer}
       <div class="status-sub">Internet Connection</div>
     </div>
     <div class="status-card">
-      <div class="clock-row"><span class="clock-icon">◷</span><span id="liveClock">10:24:35 AM</span></div>
-      <span id="currentDate">May 24, 2025</span>
+      <div class="clock-row"><span class="clock-icon">◷</span><span id="liveClock" aria-live="polite">--:--:-- --</span></div>
+      <span id="currentDate">Loading Philippine time…</span>
     </div>
   </div>
 </header>
@@ -3293,47 +3293,66 @@ if (
 
 
 /* UI ENHANCEMENTS */
-/* LIVE CLOCK — runs independently so other app code cannot prevent it. */
-(function startLiveClock() {
+/* =====================================================
+   LIVE PHILIPPINE CLOCK
+   - Always formats using Asia/Manila (UTC+8 / Philippine Standard Time).
+   - Updates every second.
+   - Re-syncs immediately when the page becomes visible again.
+   - Uses a timeout aligned to the next second so it does not slowly drift.
+===================================================== */
+(function startLivePhilippineClock() {
+  const TIME_ZONE = "Asia/Manila";
+  let timer = null;
+
+  const clockFormatter = new Intl.DateTimeFormat("en-PH", {
+    timeZone: TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+
+  const dateFormatter = new Intl.DateTimeFormat("en-PH", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
   function updateLiveClock() {
     const clock = document.getElementById("liveClock");
     const dateEl = document.getElementById("currentDate");
-    if (!clock) return;
+
+    if (!clock) {
+      timer = setTimeout(updateLiveClock, 250);
+      return;
+    }
 
     try {
       const now = new Date();
-
-      clock.textContent = new Intl.DateTimeFormat("en-PH", {
-        timeZone: "Asia/Manila",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      }).format(now);
-
-      if (dateEl) {
-        dateEl.textContent = new Intl.DateTimeFormat("en-PH", {
-          timeZone: "Asia/Manila",
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        }).format(now);
-      }
+      clock.textContent = clockFormatter.format(now);
+      if (dateEl) dateEl.textContent = dateFormatter.format(now);
     } catch (error) {
-      console.error("Live clock error:", error);
+      console.error("Live Philippine clock error:", error);
     }
+
+    // Align the next update close to the next real second boundary.
+    const delay = 1000 - (Date.now() % 1000) + 10;
+    timer = setTimeout(updateLiveClock, delay);
   }
 
-  /* Start immediately if the header already exists. */
-  updateLiveClock();
+  function restartClock() {
+    if (timer) clearTimeout(timer);
+    updateLiveClock();
+  }
 
-  /* Keep it ticking every second. */
-  setInterval(updateLiveClock, 1000);
-
-  /* Refresh when the page becomes visible again. */
-  document.addEventListener("visibilitychange", function() {
-    if (!document.hidden) updateLiveClock();
+  // Start as soon as the script is reached, and restart after page resume.
+  restartClock();
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) restartClock();
   });
+  window.addEventListener("focus", restartClock);
+  window.addEventListener("pageshow", restartClock);
 })();
 
 function updatePendingCount() {
