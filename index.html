@@ -412,8 +412,10 @@ button{cursor:pointer}
   background-size:28px 28px;
   z-index:2;
   pointer-events:none;
+  display:none;
 }
-.scan-frame{width:215px;height:190px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:4px solid #19ed67;border-radius:12px;z-index:3;pointer-events:none}
+.scanner-window.qr-detected:before{display:block}
+.scan-frame{width:215px;height:190px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:4px solid #19ed67;border-radius:12px;z-index:3;pointer-events:none;display:none}.scan-frame.detected{display:block}
 .scan-frame:before,.scan-frame:after{
   content:"";position:absolute;inset:-4px;border-radius:12px;
   border-top:0;border-bottom:0;
@@ -976,7 +978,7 @@ button{cursor:pointer}
     <div>
       <div class="kicker">PSABE-PPG CSU CHAPTER</div>
       <div class="title">ATTENDANCE<br>SYSTEM</div>
-      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Philippine Professional Group<br>Caraga State University Chapter</div>
+      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Pre Professional Group<br>Caraga State University Chapter</div>
     </div>
   </div>
   <div class="status-stack">
@@ -1897,7 +1899,7 @@ function updateConnectionStatus() {
     if (navigator.onLine) {
 
         status.textContent =
-            "● Internet connected";
+            "Online";
 
         status.style.color =
             "#16a34a";
@@ -1907,7 +1909,7 @@ function updateConnectionStatus() {
     else {
 
         status.textContent =
-            "● OFFLINE — Attendance stored locally";
+            "OFFLINE — Attendance stored locally";
 
         status.style.color =
             "#dc2626";
@@ -2540,17 +2542,49 @@ document
    QR SCAN SUCCESS
 ===================================================== */
 
+function extractStudentIdFromQr(decodedText) {
+    let value = String(decodedText || "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+
+    try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") {
+            value = parsed.studentId || parsed.studentID || parsed.id || parsed.ID || value;
+        }
+    } catch (_) {}
+
+    try {
+        if (/^https?:\/\//i.test(value)) {
+            const url = new URL(value);
+            value =
+                url.searchParams.get("studentId") ||
+                url.searchParams.get("studentID") ||
+                url.searchParams.get("id") ||
+                value;
+        }
+    } catch (_) {}
+
+    return String(value)
+        .replace(/^student\s*id\s*(number)?\s*[:#-]?\s*/i, "")
+        .replace(/^id\s*[:#-]?\s*/i, "")
+        .trim();
+}
+
 function onScanSuccess(
     decodedText,
     decodedResult
 ) {
+
+    const studentId =
+        extractStudentIdFromQr(decodedText);
 
     const now =
         Date.now();
 
 
     if (
-        decodedText ===
+        studentId ===
             lastScannedCode &&
         now -
             lastScanTime <
@@ -2562,6 +2596,14 @@ function onScanSuccess(
     }
 
 
+    if (!studentId) {
+        playErrorSound();
+        const status = document.getElementById("scannerStatus");
+        if (status) status.textContent = "QR detected, but no Student ID was found.";
+        return;
+    }
+
+
     if (isProcessing) {
 
         return;
@@ -2570,7 +2612,7 @@ function onScanSuccess(
 
 
     lastScannedCode =
-        decodedText;
+        studentId;
 
 
     lastScanTime =
@@ -2580,14 +2622,26 @@ function onScanSuccess(
     playScannerBeep();
 
 
+    const scannerWindow = document.querySelector(".scanner-window");
+    const scanFrame = document.querySelector(".scan-frame");
+
+    if (scannerWindow) scannerWindow.classList.add("qr-detected");
+    if (scanFrame) {
+        scanFrame.classList.add("detected");
+        setTimeout(() => {
+            scanFrame.classList.remove("detected");
+            if (scannerWindow) scannerWindow.classList.remove("qr-detected");
+        }, 900);
+    }
+
     document.getElementById(
         "scannerStatus"
     ).textContent =
-        "QR code detected!";
+        "QR code detected: " + studentId;
 
 
     processStudent(
-        decodedText
+        studentId
     );
 
 }
