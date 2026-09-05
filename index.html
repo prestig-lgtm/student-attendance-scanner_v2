@@ -257,6 +257,13 @@
 <meta name="theme-color" content="#003c2b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>PSABE-PPG CSU Chapter — Attendance System</title>
+<meta name="theme-color" content="#063d2d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PSABE-PPG Attendance">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./assets/icon-192.png">
 <script>
 /* QR library loader: local GitHub copy first, CDN fallback if the local file is missing. */
 window.__qrLibraryPromise = null;
@@ -956,8 +963,65 @@ button{cursor:pointer}
   .badge{padding:5px 7px;font-size:9px}
 }
 </style>
+
+<style id="pwaInstallStyles">
+  .pwa-install-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0, 12, 9, .58);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .pwa-install-backdrop.show { display: flex; }
+  .pwa-install-card {
+    width: min(100%, 430px);
+    border-radius: 24px;
+    padding: 22px;
+    background: linear-gradient(145deg, #073d2d, #02271d);
+    border: 1px solid rgba(120, 240, 190, .22);
+    box-shadow: 0 24px 70px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.06);
+    color: #fff;
+    animation: pwaInstallUp .32s ease-out;
+  }
+  @keyframes pwaInstallUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+  .pwa-install-top { display:flex; align-items:center; gap:14px; }
+  .pwa-install-icon {
+    width:58px; height:58px; flex:0 0 58px; border-radius:16px; object-fit:cover;
+    box-shadow:0 8px 22px rgba(0,0,0,.28);
+  }
+  .pwa-install-title { margin:0; font-size:20px; font-weight:800; }
+  .pwa-install-subtitle { margin:4px 0 0; font-size:13px; opacity:.78; line-height:1.4; }
+  .pwa-install-text { margin:17px 0; font-size:14px; line-height:1.55; opacity:.9; }
+  .pwa-install-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pwa-install-btn { border:0; border-radius:13px; padding:13px 14px; font-weight:800; font-size:14px; cursor:pointer; }
+  .pwa-install-btn.primary { background:#42d39a; color:#03261c; }
+  .pwa-install-btn.secondary { background:rgba(255,255,255,.09); color:#fff; border:1px solid rgba(255,255,255,.12); }
+  @media (max-width:420px) { .pwa-install-backdrop { padding:10px; } .pwa-install-card { border-radius:20px; padding:18px; } }
+</style>
 </head>
 <body>
+<div id="pwaInstallPrompt" class="pwa-install-backdrop" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
+  <div class="pwa-install-card">
+    <div class="pwa-install-top">
+      <img class="pwa-install-icon" src="./assets/icon-192.png" alt="PSABE-PPG">
+      <div>
+        <h2 id="pwaInstallTitle" class="pwa-install-title">Install PSABE-PPG Attendance</h2>
+        <p class="pwa-install-subtitle">Install it on this device like a regular app.</p>
+      </div>
+    </div>
+    <p class="pwa-install-text">Get faster access from your home screen, use the app in its own window, and keep the attendance system ready for use.</p>
+    <div class="pwa-install-actions">
+      <button id="pwaInstallNow" class="pwa-install-btn primary" type="button">Install</button>
+      <button id="pwaInstallLater" class="pwa-install-btn secondary" type="button">Not now</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- PSABE-PPG CSU CHAPTER ROTATING LOGO SPLASH SCREEN -->
 <div id="appSplashScreen" class="app-splash-screen" aria-label="Loading PSABE-PPG CSU Chapter Attendance System">
@@ -1054,7 +1118,7 @@ button{cursor:pointer}
 
   <div class="action-row" style="margin-top:14px">
     <button class="action" onclick="exportCSV()"><span class="bigicon">▣</span><span><strong>EXPORT CSV</strong><span>Download attendance records</span></span></button>
-    <button class="action danger" onclick="clearLocalAttendance()"><span class="bigicon" aria-hidden="true">🗑️</span><span><strong>CLEAR ALL LOCAL</strong><span>Clear attendance on this device only</span></span></button>
+    <button class="action danger" onclick="clearAllSheetsGlobally()"><span class="bigicon" aria-hidden="true">🗑️</span><span><strong>CLEAR ALL RECORDS</strong><span>Clear attendance on all devices</span></span></button>
   </div>
 
   <!-- Hidden compatibility table used by the existing attendance logic -->
@@ -1166,7 +1230,7 @@ button{cursor:pointer}
     <div class="settings-danger">
       <div class="settings-danger-title">⚠ &nbsp; DATA MANAGEMENT</div>
       <button type="button" class="clear-sheets-btn" onclick="event.stopPropagation(); clearAllSheetsGlobally();">CLEAR ALL SHEETS</button>
-      <div class="settings-danger-status">Clears attendance records stored locally in the app on every device when those devices sync. Google Sheets data is not changed.</div>
+      <div class="settings-danger-status">Permanently clears attendance records from Google Sheets and all app devices. Event sheets, student names, and ID numbers are preserved.</div>
     </div>
   </div>
 </div>
@@ -1342,6 +1406,7 @@ async function loadServerRecordsForActiveSheet() {
             if (!local) {
                 local = {
                     studentId: serverRecord.studentId,
+                    clearVersion: localStorage.getItem("psabe_global_clear_version") || "0",
                     studentName: serverRecord.studentName || "",
                     sheetId: sheet.id,
                     sheetName: sheet.name,
@@ -1955,12 +2020,10 @@ window.addEventListener(
             "info"
         );
 
-        setTimeout(
-            function() {
-                syncOfflineRecords();
-            },
-            1000
-        );
+        setTimeout(async function() {
+            await loadServerAttendanceSheets();
+            await syncOfflineRecords();
+        }, 1000);
     }
 );
 
@@ -2083,6 +2146,7 @@ async function processStudent(studentId) {
             } else if (!record) {
                 record = {
                     studentId: studentId,
+                    clearVersion: localStorage.getItem("psabe_global_clear_version") || "0",
                     studentName: studentName || "",
                     sheetId: activeSheet.id,
                     sheetName: activeSheet.name,
@@ -2285,11 +2349,25 @@ async function syncSingleRecord(record) {
             remark: record.remark || "",
             status: record.status || calculateLocalStatus(record.timeIn, record.timeOut),
             eventName: record.sheetName || (recordSheet ? recordSheet.name : "Attendance"),
-            sheetId: recordSheet && recordSheet.googleSheetId ? String(recordSheet.googleSheetId) : ""
+            sheetId: recordSheet && recordSheet.googleSheetId ? String(recordSheet.googleSheetId) : "",
+            clearVersion: record.clearVersion || localStorage.getItem("psabe_global_clear_version") || "0"
         };
 
         const result = await postToAppsScript(payload);
         console.log("Google Sheets response:", result);
+
+        if (result && result.staleAfterGlobalClear) {
+            if (result.clearVersion) {
+                localStorage.setItem("psabe_global_clear_version", String(result.clearVersion));
+            }
+            attendanceRecords = attendanceRecords.filter(r => r !== record);
+            saveRecords();
+            displayAttendance();
+            if (typeof renderRecentAttendance === "function") renderRecentAttendance();
+            if (typeof updateScreenshotStats === "function") updateScreenshotStats();
+            showMessage("An old offline attendance record was removed after a global clear.", "info");
+            return true;
+        }
 
         if (result && result.success === true) {
             // Keep the actual Google Sheet identity on the local sheet.
@@ -3203,38 +3281,21 @@ function exportCSV() {
 
 
 /* =====================================================
-   CLEAR LOCAL RECORDS — THIS DEVICE ONLY
-   This button intentionally does NOT affect Google Sheets
-   or attendance stored on other devices.
+   CLEAR ALL RECORDS
+   All clear actions use the same global operation.
 ===================================================== */
 
 function clearLocalAttendance() {
-    const confirmation = confirm(
-        "CLEAR ALL LOCAL ATTENDANCE?\n\n" +
-        "This will remove ALL attendance records stored locally on THIS DEVICE, across all attendance sheets.\n\n" +
-        "Google Sheets and other devices will NOT be affected.\n\n" +
-        "Continue?"
-    );
-    if (!confirmation) return;
-
-    // Local-only clear: remove every locally cached attendance record
-    // regardless of event sheet. Do not touch Google Sheets.
-    attendanceRecords = [];
-    saveRecords();
-
-    if (typeof displayAttendance === "function") displayAttendance();
-    if (typeof renderRecentAttendance === "function") renderRecentAttendance();
-    if (typeof updateScreenshotStats === "function") updateScreenshotStats();
-
-    showMessage("Local attendance records cleared from this device.", "success");
+    clearAllSheetsGlobally();
 }
 
 
 /* =====================================================
-   CLEAR ALL SHEETS — GLOBAL LOCAL-STORAGE CLEAR
-   The server does NOT delete Google Sheet entries. It only
-   publishes a new clearVersion. Every device clears its own
-   localStorage when it next syncs that version.
+   CLEAR ALL SHEETS — GLOBAL ATTENDANCE RESET
+   Clears attendance data in Google Sheets and this device. Other
+   devices clear their local caches when they receive the new
+   server clearVersion. Stale offline records cannot be uploaded
+   again after a global clear.
 ===================================================== */
 
 async function clearAllSheetsGlobally() {
@@ -3265,17 +3326,19 @@ async function clearAllSheetsGlobally() {
             throw new Error((result && result.message) || "Unable to clear attendance sheets.");
         }
 
-        // Clear every locally cached attendance record too, so this device
+        // Save the new server version BEFORE clearing local data. This
+        // prevents any stale offline record from being uploaded later.
+        if (result.clearVersion) {
+            localStorage.setItem("psabe_global_clear_version", String(result.clearVersion));
+        }
+
+        // Clear every locally cached attendance record so this device
         // immediately matches the server after the global clear.
         attendanceRecords = [];
         saveRecords();
         if (typeof displayAttendance === "function") displayAttendance();
         if (typeof renderRecentAttendance === "function") renderRecentAttendance();
         if (typeof updateScreenshotStats === "function") updateScreenshotStats();
-
-        if (result.clearVersion) {
-            localStorage.setItem("psabe_global_clear_version", String(result.clearVersion));
-        }
 
         showMessage(
             "All attendance records were cleared. Event sheets and masterlists were preserved.",
@@ -3672,7 +3735,7 @@ function renderAttendanceSheets() {
             displayAttendance();
             updatePendingCount();
             closeAttendanceRecords();
-            loadServerRecordsForActiveSheet();
+            loadServerAttendanceSheets().then(() => loadServerRecordsForActiveSheet());
             showMessage('Attendance sheet "' + sheet.name + '" is now active.', "info");
         };
 
@@ -3838,11 +3901,11 @@ updateActiveSheetUI();
 
   window.renderRecentAttendance=renderRecentAttendance;
   window.updateScreenshotStats=updateScreenshotStats;
-  window.addEventListener("load",()=>{
+  window.addEventListener("load", async ()=>{
     renderRecentAttendance();
     updateScreenshotStats();
-    loadServerAttendanceSheets();
-    loadServerRecordsForActiveSheet();
+    await loadServerAttendanceSheets();
+    await loadServerRecordsForActiveSheet();
   });
   window.addEventListener("online",async()=>{
     await loadServerAttendanceSheets();
@@ -3899,5 +3962,72 @@ window.addEventListener("load", function(){
 })();
 </script>
 
+
+<script id="pwaInstallManager">
+(function () {
+  let deferredInstallPrompt = null;
+  const PROMPT_DISMISSED_KEY = "psabe_install_prompt_dismissed";
+
+  function isStandalone() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function showInstallPrompt() {
+    if (isStandalone() || !deferredInstallPrompt) return;
+    const prompt = document.getElementById("pwaInstallPrompt");
+    if (prompt) prompt.classList.add("show");
+  }
+
+  function hideInstallPrompt() {
+    const prompt = document.getElementById("pwaInstallPrompt");
+    if (prompt) prompt.classList.remove("show");
+  }
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    // Show the install popup automatically when the browser says the app is installable.
+    setTimeout(showInstallPrompt, 900);
+  });
+
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null;
+    hideInstallPrompt();
+    localStorage.setItem("psabe_app_installed", "1");
+  });
+
+  document.addEventListener("click", async function (event) {
+    const installButton = event.target.closest("#pwaInstallNow");
+    const laterButton = event.target.closest("#pwaInstallLater");
+
+    if (laterButton) {
+      hideInstallPrompt();
+      return;
+    }
+
+    if (!installButton) return;
+    if (!deferredInstallPrompt) {
+      hideInstallPrompt();
+      return;
+    }
+
+    deferredInstallPrompt.prompt();
+    try {
+      const choice = await deferredInstallPrompt.userChoice;
+      console.log("PWA install choice:", choice.outcome);
+    } catch (error) {
+      console.warn("PWA install prompt error:", error);
+    }
+    deferredInstallPrompt = null;
+    hideInstallPrompt();
+  });
+
+  // iOS/Safari cannot use beforeinstallprompt. Keep the app installable through
+  // Safari's Share -> Add to Home Screen flow, but do not show a misleading button.
+  window.addEventListener("load", function () {
+    if (isStandalone()) hideInstallPrompt();
+  });
+})();
+</script>
 </body>
 </html>
