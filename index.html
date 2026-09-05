@@ -983,7 +983,7 @@ button{cursor:pointer}
     <div>
       <div class="kicker">PSABE-PPG CSU CHAPTER</div>
       <div class="title">ATTENDANCE<br>SYSTEM</div>
-      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Philippine Professional Group<br>Caraga State University Chapter</div>
+      <div class="subtitle">Philippine Society of Agricultural and Biosystems Engineers<br>- Pre Professional Group<br>Caraga State University Chapter</div>
     </div>
   </div>
   <div class="status-stack">
@@ -1054,7 +1054,7 @@ button{cursor:pointer}
 
   <div class="action-row" style="margin-top:14px">
     <button class="action" onclick="exportCSV()"><span class="bigicon">▣</span><span><strong>EXPORT CSV</strong><span>Download attendance records</span></span></button>
-    <button class="action danger" onclick="clearLocalAttendance()"><span class="bigicon">⌫</span><span><strong>CLEAR ALL LOCAL</strong><span>Clear attendance on this device only</span></span></button>
+    <button class="action danger" onclick="clearLocalAttendance()"><span class="bigicon" aria-hidden="true">🗑️</span><span><strong>CLEAR ALL LOCAL</strong><span>Clear attendance on this device only</span></span></button>
   </div>
 
   <!-- Hidden compatibility table used by the existing attendance logic -->
@@ -1924,7 +1924,7 @@ function updateConnectionStatus() {
     if (navigator.onLine) {
 
         status.textContent =
-            "● Internet connected";
+            "Online";
 
         status.style.color =
             "#16a34a";
@@ -1934,7 +1934,7 @@ function updateConnectionStatus() {
     else {
 
         status.textContent =
-            "● OFFLINE — Attendance stored locally";
+            "OFFLINE — Attendance stored locally";
 
         status.style.color =
             "#dc2626";
@@ -3245,8 +3245,8 @@ async function clearAllSheetsGlobally() {
 
     const confirmation = confirm(
         "CLEAR ALL SHEETS?\n\n" +
-        "This will clear ALL attendance records stored locally in the app on every device that syncs.\n\n" +
-        "Google Sheet tabs, event names, masterlists, and attendance data in Google Sheets will NOT be deleted or changed.\n" +
+        "This will clear ALL attendance records from the attendance event sheets and from the app's local cache on every device.\n\n" +
+        "Event sheet tabs, event names, student names, and student ID numbers will be preserved.\n" +
         "Devices that are offline will clear their local records when they reconnect.\n\n" +
         "Continue?"
     );
@@ -3278,7 +3278,7 @@ async function clearAllSheetsGlobally() {
         }
 
         showMessage(
-            "Global local clear sent. All devices will clear their locally stored attendance when they sync.",
+            "All attendance records were cleared. Event sheets and masterlists were preserved.",
             "success"
         );
         const settingsMenu = document.getElementById("settingsMenu");
