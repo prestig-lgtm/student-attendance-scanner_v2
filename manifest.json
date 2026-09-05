@@ -1,22 +1,22 @@
 {
   "name": "PSABE-PPG CSU Chapter Attendance System",
-  "short_name": "PSABE Attendance",
+  "short_name": "PSABE-PPG Attendance",
   "description": "PSABE-PPG CSU Chapter Attendance System",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#002d24",
-  "theme_color": "#002d24",
   "orientation": "portrait-primary",
+  "background_color": "#001b15",
+  "theme_color": "#063d2d",
   "icons": [
     {
-      "src": "./assets/psabe-logo.png",
+      "src": "./assets/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./assets/psabe-logo.png",
+      "src": "./assets/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
