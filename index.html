@@ -3209,26 +3209,26 @@ function exportCSV() {
 ===================================================== */
 
 function clearLocalAttendance() {
+    const confirmation = confirm(
+        "CLEAR ALL LOCAL ATTENDANCE?\n\n" +
+        "This will remove ALL attendance records stored locally on THIS DEVICE, across all attendance sheets.\n\n" +
+        "Google Sheets and other devices will NOT be affected.\n\n" +
+        "Continue?"
+    );
+    if (!confirmation) return;
+
     // Local-only clear: remove every locally cached attendance record
     // regardless of event sheet. Do not touch Google Sheets.
     attendanceRecords = [];
-    if (!confirmation) return;
-
-    const activeId = activeSheet ? activeSheet.id : (attendanceSheets[0] && attendanceSheets[0].id);
-    const today = (typeof getToday === "function") ? getToday() : new Date().toISOString().slice(0,10);
-
-    attendanceRecords = attendanceRecords.filter(record => {
-        const recordSheetId = record.sheetId || activeId;
-        return !(recordSheetId === activeId && (!record.date || record.date === today));
-    });
-
     saveRecords();
+
     if (typeof displayAttendance === "function") displayAttendance();
     if (typeof renderRecentAttendance === "function") renderRecentAttendance();
     if (typeof updateScreenshotStats === "function") updateScreenshotStats();
 
     showMessage("Local attendance records cleared from this device.", "success");
 }
+
 
 /* =====================================================
    CLEAR ALL SHEETS — GLOBAL LOCAL-STORAGE CLEAR
