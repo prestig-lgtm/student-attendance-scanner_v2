@@ -1420,8 +1420,8 @@ async function loadServerRecordsForActiveSheet() {
                 attendanceRecords.push(local);
             } else {
                 local.studentName = serverRecord.studentName || local.studentName;
-                local.timeIn = serverRecord.timeIn || local.timeIn;
-                local.timeOut = serverRecord.timeOut || local.timeOut;
+                local.timeIn = serverRecord.timeIn;
+                local.timeOut = serverRecord.timeOut;
                 local.status = serverRecord.status || calculateLocalStatus(local.timeIn, local.timeOut);
                 local.remark = local.timeOut && !local.timeIn ? "NO TIME IN" : local.remark;
                 local.synced = true;
@@ -2022,6 +2022,7 @@ window.addEventListener(
 
         setTimeout(async function() {
             await loadServerAttendanceSheets();
+            await loadServerRecordsForActiveSheet();
             await syncOfflineRecords();
         }, 1000);
     }
@@ -2532,33 +2533,45 @@ async function syncOfflineRecords() {
    AUTOMATIC RETRY
 ===================================================== */
 
-const SYNC_RETRY_INTERVAL = 10000;
+const SYNC_RETRY_INTERVAL = 5000;
+let isRefreshingFromServer = false;
 
-setInterval(
-    function() {
+/*
+ * MULTI-DEVICE LIVE SYNC
+ * Every online device periodically reads the active event sheet from
+ * Google Sheets. This is what makes attendance scanned on Device A
+ * appear on Device B without requiring a page reload.
+ */
+async function refreshAttendanceFromServer() {
+    if (!navigator.onLine || isRefreshingFromServer) return;
 
-        if (!navigator.onLine) {
-            return;
-        }
+    isRefreshingFromServer = true;
+    try {
+        // First refresh the list so temporary/local sheets receive their
+        // real Google Sheet ID before records are requested.
+        await loadServerAttendanceSheets();
 
-        // Poll the server for a global local-storage clear. This allows
-        // every device that is online to clear its own local records.
-        loadServerAttendanceSheets().then(() => {
-            const hasPending = attendanceRecords.some(
-                record => record.synced !== true
-            );
+        // Then fetch the latest attendance rows for the active event.
+        await loadServerRecordsForActiveSheet();
 
-            if (hasPending) {
-                console.log("Automatic retry: pending records detected.");
-                syncOfflineRecords();
-            }
-        }).catch(error => {
-            console.warn("Background global-clear check failed:", error);
-        });
+        // Finally upload anything this device recorded while offline.
+        await syncOfflineRecords();
+    } catch (error) {
+        console.warn("Background attendance sync failed:", error);
+    } finally {
+        isRefreshingFromServer = false;
+    }
+}
 
-    },
-    SYNC_RETRY_INTERVAL
-);
+setInterval(refreshAttendanceFromServer, SYNC_RETRY_INTERVAL);
+
+// Refresh immediately when the app becomes visible/focused again.
+document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") refreshAttendanceFromServer();
+});
+
+window.addEventListener("focus", refreshAttendanceFromServer);
+window.addEventListener("pageshow", refreshAttendanceFromServer);
 
 
 /* =====================================================
@@ -3380,6 +3393,7 @@ if (navigator.onLine) {
             // Check the global clear version before attempting to resend
             // any offline records, so cleared records cannot be uploaded again.
             await loadServerAttendanceSheets();
+            await loadServerRecordsForActiveSheet();
             await syncOfflineRecords();
         },
         300
@@ -3441,58 +3455,56 @@ if (
    - Uses a timeout aligned to the next second so it does not slowly drift.
 ===================================================== */
 (function startLivePhilippineClock() {
-  const TIME_ZONE = "Asia/Manila";
-  let timer = null;
-
-  const clockFormatter = new Intl.DateTimeFormat("en-PH", {
-    timeZone: TIME_ZONE,
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  });
-
-  const dateFormatter = new Intl.DateTimeFormat("en-PH", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
-
-  function updateLiveClock() {
+  function updateClock() {
     const clock = document.getElementById("liveClock");
     const dateEl = document.getElementById("currentDate");
+    if (!clock) return;
 
-    if (!clock) {
-      timer = setTimeout(updateLiveClock, 250);
-      return;
-    }
-
+    const now = new Date();
     try {
-      const now = new Date();
-      clock.textContent = clockFormatter.format(now);
-      if (dateEl) dateEl.textContent = dateFormatter.format(now);
-    } catch (error) {
-      console.error("Live Philippine clock error:", error);
+      clock.textContent = now.toLocaleTimeString("en-PH", {
+        timeZone: "Asia/Manila",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      });
+
+      if (dateEl) {
+        dateEl.textContent = now.toLocaleDateString("en-PH", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        });
+      }
+    } catch (e) {
+      // Fallback for browsers with limited Intl/timeZone support.
+      clock.textContent = now.toLocaleTimeString("en-US", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+      });
+      if (dateEl) dateEl.textContent = now.toLocaleDateString("en-US", {
+        year: "numeric", month: "long", day: "numeric"
+      });
     }
-
-    // Align the next update close to the next real second boundary.
-    const delay = 1000 - (Date.now() % 1000) + 10;
-    timer = setTimeout(updateLiveClock, delay);
   }
 
-  function restartClock() {
-    if (timer) clearTimeout(timer);
-    updateLiveClock();
+  function startClock() {
+    updateClock();
+    if (window.__psabeClockTimer) clearInterval(window.__psabeClockTimer);
+    window.__psabeClockTimer = setInterval(updateClock, 1000);
   }
 
-  // Start as soon as the script is reached, and restart after page resume.
-  restartClock();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startClock, { once: true });
+  } else {
+    startClock();
+  }
+
+  window.addEventListener("pageshow", startClock);
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) restartClock();
+    if (!document.hidden) startClock();
   });
-  window.addEventListener("focus", restartClock);
-  window.addEventListener("pageshow", restartClock);
 })();
 
 function updatePendingCount() {
