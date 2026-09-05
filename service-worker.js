@@ -1,140 +1,197 @@
-const CACHE_NAME = "psabe-ppg-attendance-v2";
+const CACHE_NAME = "psabe-ppg-attendance-v1";
 
-const FILES_TO_CACHE = [
-    "./",
-    "./index.html",
-    "./manifest.json",
-    "./html5-qrcode.min.js",
-    "./assets/psabe-logo.png"
+const APP_SHELL = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./assets/icon-192.png",
+  "./assets/icon-512.png",
+  "./assets/psabe-logo.png"
 ];
 
-
-// =====================================================
 // INSTALL
-// =====================================================
-
 self.addEventListener("install", event => {
-
-    console.log("PSABE Attendance: Installing Service Worker...");
-
-    event.waitUntil(
-
-        caches.open(CACHE_NAME)
-            .then(cache => {
-
-                console.log(
-                    "Caching PSABE Attendance application..."
-                );
-
-                return cache.addAll(FILES_TO_CACHE);
-
-            })
-
-    );
-
-    self.skipWaiting();
-
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
 });
 
-
-// =====================================================
 // ACTIVATE
-// =====================================================
-
 self.addEventListener("activate", event => {
-
-    console.log("PSABE Attendance: Service Worker activated.");
-
-    event.waitUntil(
-
-        caches.keys()
-            .then(cacheNames => {
-
-                return Promise.all(
-
-                    cacheNames
-                        .filter(
-                            cacheName =>
-                                cacheName !== CACHE_NAME
-                        )
-                        .map(
-                            cacheName =>
-                                caches.delete(cacheName)
-                        )
-
-                );
-
-            })
-
-    );
-
-    self.clients.claim();
-
+  event.waitUntil(
+    caches.keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
-
-// =====================================================
 // FETCH
-// =====================================================
-
 self.addEventListener("fetch", event => {
+  const request = event.request;
 
-    /*
-     * Only handle GET requests.
-     *
-     * POST requests are used by Google Apps Script
-     * and must go directly to Google Apps Script.
-     */
+  // Only handle GET requests
+  if (request.method !== "GET") return;
 
-    if (event.request.method !== "GET") {
-        return;
-    }
+  const url = new URL(request.url);
 
+  // Network-first for HTML and manifest
+  if (
+    request.mode === "navigate" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith("manifest.json")
+  ) {
     event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response && response.ok) {
+            const copy = response.clone();
 
-        caches.match(event.request)
-            .then(cachedResponse => {
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(request, copy);
+            });
+          }
 
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-
-                return fetch(event.request)
-                    .then(networkResponse => {
-
-                        if (
-                            networkResponse &&
-                            networkResponse.status === 200
-                        ) {
-
-                            const responseClone =
-                                networkResponse.clone();
-
-                            caches.open(CACHE_NAME)
-                                .then(cache => {
-
-                                    cache.put(
-                                        event.request,
-                                        responseClone
-                                    );
-
-                                });
-
-                        }
-
-                        return networkResponse;
-
-                    })
-                    .catch(() => {
-
-                        return caches.match(
-                            "./index.html"
-                        );
-
-                    });
-
-            })
-
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
 
+    return;
+  }
+
+  // Cache-first for local assets
+  event.respondWith(
+    caches.match(request)
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(request)
+          .then(response => {
+            if (
+              response &&
+              response.status === 200 &&
+              response.type !== "opaque"
+            ) {
+              const copy = response.clone();
+
+              caches.open(CACHE_NAME).then(cache => {
+                cache.put(request, copy);
+              });
+            }
+
+            return response;
+          });
+      })
+      .catch(() => {
+        return caches.match("./index.html");
+      })
+  );
+});const CACHE_NAME = "psabe-ppg-attendance-v1";
+
+const APP_SHELL = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./assets/icon-192.png",
+  "./assets/icon-512.png",
+  "./assets/psabe-logo.png"
+];
+
+// INSTALL
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ACTIVATE
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+// FETCH
+self.addEventListener("fetch", event => {
+  const request = event.request;
+
+  // Only handle GET requests
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+
+  // Network-first for HTML and manifest
+  if (
+    request.mode === "navigate" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith("manifest.json")
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response && response.ok) {
+            const copy = response.clone();
+
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(request, copy);
+            });
+          }
+
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+
+    return;
+  }
+
+  // Cache-first for local assets
+  event.respondWith(
+    caches.match(request)
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(request)
+          .then(response => {
+            if (
+              response &&
+              response.status === 200 &&
+              response.type !== "opaque"
+            ) {
+              const copy = response.clone();
+
+              caches.open(CACHE_NAME).then(cache => {
+                cache.put(request, copy);
+              });
+            }
+
+            return response;
+          });
+      })
+      .catch(() => {
+        return caches.match("./index.html");
+      })
+  );
 });
