@@ -2910,10 +2910,13 @@ async function startQrScanner(userRequested = false) {
             {
                 // Faster QR recognition: scan more frames, use a larger
                 // detection area, and tell html5-qrcode to look only for QR.
-                fps: 15,
+                /* QR ONLY — tuned for maximum detection sensitivity. */
+                fps: 20,
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    /* A larger scan region makes it easier to catch QR codes
+                       that are small, off-center, or entering the frame. */
                     const size = Math.floor(
-                        Math.min(viewfinderWidth, viewfinderHeight) * 0.72
+                        Math.min(viewfinderWidth, viewfinderHeight) * 0.86
                     );
                     return { width: size, height: size };
                 },
@@ -2923,9 +2926,11 @@ async function startQrScanner(userRequested = false) {
                 },
                 videoConstraints: {
                     facingMode: { ideal: "environment" },
-                    /* Prefer a portrait camera stream for the vertical scanner viewport. */
-                    width: { ideal: 720 },
-                    height: { ideal: 1280 }
+                    /* Request a sharper portrait stream so small QR modules
+                       contain more detail for the decoder. */
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 },
+                    frameRate: { ideal: 30, max: 60 }
                 },
                 disableFlip: true
             },
