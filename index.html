@@ -1003,6 +1003,49 @@ button{cursor:pointer}
   .pwa-install-btn.secondary { background:rgba(255,255,255,.09); color:#fff; border:1px solid rgba(255,255,255,.12); }
   @media (max-width:420px) { .pwa-install-backdrop { padding:10px; } .pwa-install-card { border-radius:20px; padding:18px; } }
 </style>
+<style id="verticalScannerLayout">
+/* VERTICAL PORTRAIT QR SCANNER */
+.scanner-window {
+  width: min(100%, 360px);
+  height: 520px;
+  aspect-ratio: 9 / 13;
+  margin: 0 auto 8px;
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+  background: #03070a;
+}
+#reader,
+#reader > div,
+#reader__scan_region {
+  width: 100% !important;
+  height: 100% !important;
+}
+#reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+/* Keep the QR target square while the camera viewport is portrait. */
+.scan-frame {
+  width: min(72%, 270px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+@media (max-width: 560px) {
+  .scanner-window {
+    width: min(100%, 330px);
+    height: auto;
+    aspect-ratio: 9 / 13;
+    margin: 0 auto 7px;
+  }
+  .scan-frame {
+    width: 72%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+}
+</style>
 </head>
 <body>
 <div id="pwaInstallPrompt" class="pwa-install-backdrop" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
@@ -2865,13 +2908,26 @@ async function startQrScanner(userRequested = false) {
         await qrCameraScanner.start(
             cameraSource,
             {
-                fps: 10,
-                qrbox: {
-                    width: 200,
-                    height: 200
+                // Faster QR recognition: scan more frames, use a larger
+                // detection area, and tell html5-qrcode to look only for QR.
+                fps: 15,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    const size = Math.floor(
+                        Math.min(viewfinderWidth, viewfinderHeight) * 0.72
+                    );
+                    return { width: size, height: size };
                 },
-                aspectRatio: 1.7777778,
-                disableFlip: false
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                },
+                videoConstraints: {
+                    facingMode: { ideal: "environment" },
+                    /* Prefer a portrait camera stream for the vertical scanner viewport. */
+                    width: { ideal: 720 },
+                    height: { ideal: 1280 }
+                },
+                disableFlip: true
             },
             onScanSuccess,
             onScanFailure
