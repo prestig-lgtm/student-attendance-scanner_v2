@@ -3500,28 +3500,10 @@ if (
    - Uses a timeout aligned to the next second so it does not slowly drift.
 ===================================================== */
 (function startLivePhilippineClock() {
-  // Philippine Standard Time is fixed at UTC+8 (no daylight saving time).
-  function formatPhilippineTime(date) {
-    const utcMillis = date.getTime() + date.getTimezoneOffset() * 60000;
-    const ph = new Date(utcMillis + 8 * 60 * 60000);
-
-    let hours = ph.getUTCHours();
-    const minutes = String(ph.getUTCMinutes()).padStart(2, "0");
-    const seconds = String(ph.getUTCSeconds()).padStart(2, "0");
-    const meridiem = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12 || 12;
-
-    return `${hours}:${minutes}:${seconds} ${meridiem}`;
-  }
-
-  function formatPhilippineDate(date) {
-    const utcMillis = date.getTime() + date.getTimezoneOffset() * 60000;
-    const ph = new Date(utcMillis + 8 * 60 * 60000);
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ];
-    return `${months[ph.getUTCMonth()]} ${ph.getUTCDate()}, ${ph.getUTCFullYear()}`;
+  // Philippine Standard Time is always UTC+8 (no daylight saving time).
+  // Calculate directly from UTC so the clock is independent of the device time zone.
+  function getPhilippineNow() {
+    return new Date(Date.now() + (8 * 60 * 60 * 1000));
   }
 
   function updateClock() {
@@ -3529,18 +3511,32 @@ if (
     const dateEl = document.getElementById("currentDate");
     if (!clock) return;
 
-    try {
-      const now = new Date();
-      clock.textContent = formatPhilippineTime(now);
-      if (dateEl) dateEl.textContent = formatPhilippineDate(now);
-    } catch (error) {
-      console.error("Philippine clock error:", error);
+    const ph = getPhilippineNow();
+    let hours = ph.getUTCHours();
+    const minutes = String(ph.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(ph.getUTCSeconds()).padStart(2, "0");
+    const meridiem = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+
+    clock.textContent = hours + ":" + minutes + ":" + seconds + " " + meridiem;
+
+    if (dateEl) {
+      const months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      dateEl.textContent =
+        months[ph.getUTCMonth()] + " " +
+        ph.getUTCDate() + ", " +
+        ph.getUTCFullYear();
     }
   }
 
   function startClock() {
     updateClock();
-    if (window.__psabeClockTimer) clearInterval(window.__psabeClockTimer);
+    if (window.__psabeClockTimer) {
+      clearInterval(window.__psabeClockTimer);
+    }
     window.__psabeClockTimer = setInterval(updateClock, 1000);
   }
 
