@@ -1230,7 +1230,7 @@ button{cursor:pointer}
     <div class="settings-danger">
       <div class="settings-danger-title">⚠ &nbsp; DATA MANAGEMENT</div>
       <button type="button" class="clear-sheets-btn" onclick="event.stopPropagation(); clearAllSheetsGlobally();">CLEAR ALL SHEETS</button>
-      <div class="settings-danger-status">Permanently clears attendance records from Google Sheets and all app devices. Event sheets, student names, and ID numbers are preserved.</div>
+      <div class="settings-danger-status">Clears attendance records from Google Sheets and synchronizes the reset to all app devices. Event sheets, student names, and ID numbers are preserved.</div>
     </div>
   </div>
 </div>
@@ -3316,8 +3316,7 @@ function clearLocalStorageOnly() {
         const keysToRemove = [
             "attendanceRecords",
             "attendance_records",
-            "psabe_attendance_records",
-            "psabe_global_clear_version"
+            "psabe_attendance_records"
         ];
 
         [...new Set(keysToRemove)].forEach(function(key) {
@@ -3501,37 +3500,41 @@ if (
    - Uses a timeout aligned to the next second so it does not slowly drift.
 ===================================================== */
 (function startLivePhilippineClock() {
+  // Philippine Standard Time is fixed at UTC+8 (no daylight saving time).
+  function formatPhilippineTime(date) {
+    const utcMillis = date.getTime() + date.getTimezoneOffset() * 60000;
+    const ph = new Date(utcMillis + 8 * 60 * 60000);
+
+    let hours = ph.getUTCHours();
+    const minutes = String(ph.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(ph.getUTCSeconds()).padStart(2, "0");
+    const meridiem = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+
+    return `${hours}:${minutes}:${seconds} ${meridiem}`;
+  }
+
+  function formatPhilippineDate(date) {
+    const utcMillis = date.getTime() + date.getTimezoneOffset() * 60000;
+    const ph = new Date(utcMillis + 8 * 60 * 60000);
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    return `${months[ph.getUTCMonth()]} ${ph.getUTCDate()}, ${ph.getUTCFullYear()}`;
+  }
+
   function updateClock() {
     const clock = document.getElementById("liveClock");
     const dateEl = document.getElementById("currentDate");
     if (!clock) return;
 
-    const now = new Date();
     try {
-      clock.textContent = now.toLocaleTimeString("en-PH", {
-        timeZone: "Asia/Manila",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      });
-
-      if (dateEl) {
-        dateEl.textContent = now.toLocaleDateString("en-PH", {
-          timeZone: "Asia/Manila",
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        });
-      }
-    } catch (e) {
-      // Fallback for browsers with limited Intl/timeZone support.
-      clock.textContent = now.toLocaleTimeString("en-US", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
-      });
-      if (dateEl) dateEl.textContent = now.toLocaleDateString("en-US", {
-        year: "numeric", month: "long", day: "numeric"
-      });
+      const now = new Date();
+      clock.textContent = formatPhilippineTime(now);
+      if (dateEl) dateEl.textContent = formatPhilippineDate(now);
+    } catch (error) {
+      console.error("Philippine clock error:", error);
     }
   }
 
@@ -3548,6 +3551,7 @@ if (
   }
 
   window.addEventListener("pageshow", startClock);
+  window.addEventListener("focus", startClock);
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) startClock();
   });
