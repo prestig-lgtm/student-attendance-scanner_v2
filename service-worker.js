@@ -1,16 +1,7 @@
-const CACHE_NAME = "psabe-ppg-attendance-v1";
+const CACHE_NAME = 'psabe-ppg-attendance-v3';
+const APP_SHELL = ['./', './index.html', './manifest.json'];
 
-const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./assets/icon-192.png",
-  "./assets/icon-512.png",
-  "./assets/psabe-logo.png"
-];
-
-// INSTALL
-self.addEventListener("install", event => {
+self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(APP_SHELL))
@@ -18,180 +9,74 @@ self.addEventListener("install", event => {
   );
 });
 
-// ACTIVATE
-self.addEventListener("activate", event => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys()
-      .then(keys =>
-        Promise.all(
-          keys
-            .filter(key => key !== CACHE_NAME)
-            .map(key => caches.delete(key))
-        )
+    caches.keys().then(keys =>
+      Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
       )
-      .then(() => self.clients.claim())
+    ).then(() => self.clients.claim())
   );
 });
 
-// FETCH
-self.addEventListener("fetch", event => {
+self.addEventListener('fetch', event => {
   const request = event.request;
 
-  // Only handle GET requests
-  if (request.method !== "GET") return;
+  // Only handle GET requests.
+  if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  // Network-first for HTML and manifest
+  /*
+   * Always try the network for index.html.
+   * This makes sure updates to the attendance system,
+   * including the Philippine clock, are picked up.
+   */
   if (
-    request.mode === "navigate" ||
-    url.pathname.endsWith(".html") ||
-    url.pathname.endsWith("manifest.json")
+    request.mode === 'navigate' ||
+    url.pathname.endsWith('/index.html')
   ) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then(response => {
-          if (response && response.ok) {
-            const copy = response.clone();
+          const copy = response.clone();
 
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(request, copy);
-            });
-          }
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(request, copy);
+          });
 
           return response;
         })
-        .catch(() => caches.match(request))
+        .catch(() =>
+          caches.match(request).then(
+            response =>
+              response || caches.match('./index.html')
+          )
+        )
     );
 
     return;
   }
 
-  // Cache-first for local assets
+  /*
+   * For other files:
+   * Use the cached version when available.
+   * If not cached, download it and save it.
+   */
   event.respondWith(
-    caches.match(request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+    caches.match(request).then(cached =>
+      cached ||
+      fetch(request).then(response => {
+        const copy = response.clone();
 
-        return fetch(request)
-          .then(response => {
-            if (
-              response &&
-              response.status === 200 &&
-              response.type !== "opaque"
-            ) {
-              const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(request, copy);
+        });
 
-              caches.open(CACHE_NAME).then(cache => {
-                cache.put(request, copy);
-              });
-            }
-
-            return response;
-          });
+        return response;
       })
-      .catch(() => {
-        return caches.match("./index.html");
-      })
-  );
-});const CACHE_NAME = "psabe-ppg-attendance-v1";
-
-const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./assets/icon-192.png",
-  "./assets/icon-512.png",
-  "./assets/psabe-logo.png"
-];
-
-// INSTALL
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
-});
-
-// ACTIVATE
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys =>
-        Promise.all(
-          keys
-            .filter(key => key !== CACHE_NAME)
-            .map(key => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
-  );
-});
-
-// FETCH
-self.addEventListener("fetch", event => {
-  const request = event.request;
-
-  // Only handle GET requests
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-
-  // Network-first for HTML and manifest
-  if (
-    request.mode === "navigate" ||
-    url.pathname.endsWith(".html") ||
-    url.pathname.endsWith("manifest.json")
-  ) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response && response.ok) {
-            const copy = response.clone();
-
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(request, copy);
-            });
-          }
-
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
-
-    return;
-  }
-
-  // Cache-first for local assets
-  event.respondWith(
-    caches.match(request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(request)
-          .then(response => {
-            if (
-              response &&
-              response.status === 200 &&
-              response.type !== "opaque"
-            ) {
-              const copy = response.clone();
-
-              caches.open(CACHE_NAME).then(cache => {
-                cache.put(request, copy);
-              });
-            }
-
-            return response;
-          });
-      })
-      .catch(() => {
-        return caches.match("./index.html");
-      })
+    )
   );
 });
