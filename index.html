@@ -1876,41 +1876,20 @@ function playErrorSound() {
 ===================================================== */
 
 function getToday() {
+    // Always use Philippine Standard Time (Asia/Manila).
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(new Date());
 
-    const now =
-        new Date();
+    const values = {};
+    parts.forEach(function(part) {
+        if (part.type !== "literal") values[part.type] = part.value;
+    });
 
-
-    const year =
-        now.getFullYear();
-
-
-    const month =
-        String(
-            now.getMonth() + 1
-        ).padStart(
-            2,
-            "0"
-        );
-
-
-    const day =
-        String(
-            now.getDate()
-        ).padStart(
-            2,
-            "0"
-        );
-
-
-    return (
-        year +
-        "-" +
-        month +
-        "-" +
-        day
-    );
-
+    return values.year + "-" + values.month + "-" + values.day;
 }
 
 
@@ -1919,25 +1898,14 @@ function getToday() {
 ===================================================== */
 
 function getCurrentTime() {
-
-    const now =
-        new Date();
-
-
-    return now.toLocaleTimeString(
-        [],
-        {
-            hour:
-                "2-digit",
-
-            minute:
-                "2-digit",
-
-            second:
-                "2-digit"
-        }
-    );
-
+    // Attendance timestamps always use Philippine Standard Time.
+    return new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+    }).format(new Date());
 }
 
 
@@ -3962,26 +3930,29 @@ window.addEventListener("load", function(){
 <script>
 /* Standalone live Philippine clock. */
 (function () {
+  var timeFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+
+  var dateFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
   function updatePhilippineClock() {
     var clock = document.getElementById("liveClock");
     var dateEl = document.getElementById("currentDate");
     if (!clock) return;
 
     var now = new Date();
-    var utcMillis = now.getTime() + (now.getTimezoneOffset() * 60000);
-    var ph = new Date(utcMillis + (8 * 60 * 60000));
-    var h24 = ph.getUTCHours();
-    var h12 = h24 % 12 || 12;
-    var mm = String(ph.getUTCMinutes()).padStart(2, "0");
-    var ss = String(ph.getUTCSeconds()).padStart(2, "0");
-    var ampm = h24 >= 12 ? "PM" : "AM";
-
-    clock.textContent = h12 + ":" + mm + ":" + ss + " " + ampm;
-
-    if (dateEl) {
-      var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      dateEl.textContent = months[ph.getUTCMonth()] + " " + ph.getUTCDate() + ", " + ph.getUTCFullYear();
-    }
+    clock.textContent = timeFormatter.format(now);
+    if (dateEl) dateEl.textContent = dateFormatter.format(now);
   }
 
   function startPhilippineClock() {
@@ -3995,8 +3966,12 @@ window.addEventListener("load", function(){
   } else {
     startPhilippineClock();
   }
+
   window.addEventListener("pageshow", startPhilippineClock);
   window.addEventListener("focus", startPhilippineClock);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) startPhilippineClock();
+  });
 })();
 </script>
 <script id="pwaInstallManager">
