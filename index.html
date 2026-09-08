@@ -3491,68 +3491,6 @@ if (
 
 
 
-/* UI ENHANCEMENTS */
-/* =====================================================
-   LIVE PHILIPPINE CLOCK
-   - Always formats using Asia/Manila (UTC+8 / Philippine Standard Time).
-   - Updates every second.
-   - Re-syncs immediately when the page becomes visible again.
-   - Uses a timeout aligned to the next second so it does not slowly drift.
-===================================================== */
-(function startLivePhilippineClock() {
-  // Philippine Standard Time is always UTC+8 (no daylight saving time).
-  // Calculate directly from UTC so the clock is independent of the device time zone.
-  function getPhilippineNow() {
-    return new Date(Date.now() + (8 * 60 * 60 * 1000));
-  }
-
-  function updateClock() {
-    const clock = document.getElementById("liveClock");
-    const dateEl = document.getElementById("currentDate");
-    if (!clock) return;
-
-    const ph = getPhilippineNow();
-    let hours = ph.getUTCHours();
-    const minutes = String(ph.getUTCMinutes()).padStart(2, "0");
-    const seconds = String(ph.getUTCSeconds()).padStart(2, "0");
-    const meridiem = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12 || 12;
-
-    clock.textContent = hours + ":" + minutes + ":" + seconds + " " + meridiem;
-
-    if (dateEl) {
-      const months = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ];
-      dateEl.textContent =
-        months[ph.getUTCMonth()] + " " +
-        ph.getUTCDate() + ", " +
-        ph.getUTCFullYear();
-    }
-  }
-
-  function startClock() {
-    updateClock();
-    if (window.__psabeClockTimer) {
-      clearInterval(window.__psabeClockTimer);
-    }
-    window.__psabeClockTimer = setInterval(updateClock, 1000);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startClock, { once: true });
-  } else {
-    startClock();
-  }
-
-  window.addEventListener("pageshow", startClock);
-  window.addEventListener("focus", startClock);
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) startClock();
-  });
-})();
-
 function updatePendingCount() {
   const el = document.getElementById("pendingCount");
   if (el) {
@@ -4021,6 +3959,46 @@ window.addEventListener("load", function(){
 </script>
 
 
+<script>
+/* Standalone live Philippine clock. */
+(function () {
+  function updatePhilippineClock() {
+    var clock = document.getElementById("liveClock");
+    var dateEl = document.getElementById("currentDate");
+    if (!clock) return;
+
+    var now = new Date();
+    var utcMillis = now.getTime() + (now.getTimezoneOffset() * 60000);
+    var ph = new Date(utcMillis + (8 * 60 * 60000));
+    var h24 = ph.getUTCHours();
+    var h12 = h24 % 12 || 12;
+    var mm = String(ph.getUTCMinutes()).padStart(2, "0");
+    var ss = String(ph.getUTCSeconds()).padStart(2, "0");
+    var ampm = h24 >= 12 ? "PM" : "AM";
+
+    clock.textContent = h12 + ":" + mm + ":" + ss + " " + ampm;
+
+    if (dateEl) {
+      var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      dateEl.textContent = months[ph.getUTCMonth()] + " " + ph.getUTCDate() + ", " + ph.getUTCFullYear();
+    }
+  }
+
+  function startPhilippineClock() {
+    updatePhilippineClock();
+    if (window.__psabePhilippineClock) clearInterval(window.__psabePhilippineClock);
+    window.__psabePhilippineClock = setInterval(updatePhilippineClock, 1000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startPhilippineClock, { once: true });
+  } else {
+    startPhilippineClock();
+  }
+  window.addEventListener("pageshow", startPhilippineClock);
+  window.addEventListener("focus", startPhilippineClock);
+})();
+</script>
 <script id="pwaInstallManager">
 (function () {
   let deferredInstallPrompt = null;
