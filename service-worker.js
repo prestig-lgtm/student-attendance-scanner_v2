@@ -1,4 +1,4 @@
-const CACHE_NAME = 'psabe-ppg-attendance-v5';
+const CACHE_NAME = 'psabe-ppg-attendance-v6';
 
 const APP_SHELL = [
   './',
@@ -11,16 +11,21 @@ const APP_SHELL = [
   './assets/psabe-logo.png'
 ];
 
+
+/* =========================================================
+   INSTALL
+   ========================================================= */
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(async cache => {
-        // Cache each asset independently.
-        // If an optional asset is missing from the deployment,
-        // the service worker will still install successfully.
+
         await Promise.all(
           APP_SHELL.map(async asset => {
+
             try {
+
               const response = await fetch(asset, {
                 cache: 'no-store'
               });
@@ -28,37 +33,59 @@ self.addEventListener('install', event => {
               if (response && response.ok) {
                 await cache.put(asset, response);
               }
+
             } catch (error) {
+
               console.warn(
                 'Offline cache skipped:',
                 asset,
                 error
               );
+
             }
+
           })
         );
+
       })
       .then(() => self.skipWaiting())
   );
 });
 
 
+/* =========================================================
+   ACTIVATE
+   ========================================================= */
+
 self.addEventListener('activate', event => {
+
   event.waitUntil(
+
     caches.keys()
-      .then(keys =>
-        Promise.all(
+      .then(keys => {
+
+        return Promise.all(
+
           keys
             .filter(key => key !== CACHE_NAME)
             .map(key => caches.delete(key))
-        )
-      )
+
+        );
+
+      })
       .then(() => self.clients.claim())
+
   );
+
 });
 
 
+/* =========================================================
+   FETCH
+   ========================================================= */
+
 self.addEventListener('fetch', event => {
+
   const request = event.request;
 
   // Only handle GET requests.
@@ -69,21 +96,24 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
 
-  /*
-   * APP NAVIGATION
-   *
-   * Cache-first strategy:
-   * - If the app is already cached, open it immediately offline.
-   * - When internet is available, refresh the cached index.html
-   *   in the background.
-   */
+  /* =======================================================
+     PAGE NAVIGATION
+     ======================================================= */
+
   if (
     request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html')
   ) {
+
     event.respondWith(
+
       caches.match(request)
         .then(cached => {
+
+          /*
+           * Refresh the cached index.html in the background
+           * whenever internet is available.
+           */
 
           const networkRefresh = fetch(request, {
             cache: 'no-store'
@@ -91,40 +121,52 @@ self.addEventListener('fetch', event => {
             .then(response => {
 
               if (response && response.ok) {
+
                 caches.open(CACHE_NAME)
                   .then(cache => {
+
                     cache.put(
                       './index.html',
                       response.clone()
                     );
+
                   });
+
               }
 
               return response;
+
             })
             .catch(() => null);
 
 
-          // Return cached app immediately if available.
-          return cached || networkRefresh.then(response =>
-            response || caches.match('./index.html')
-          );
+          /*
+           * Use cached version immediately when available.
+           * This allows the app to open offline.
+           */
+
+          return cached ||
+            networkRefresh.then(response => {
+
+              return response ||
+                caches.match('./index.html');
+
+            });
+
         })
+
     );
 
     return;
   }
 
 
-  /*
-   * STATIC APP ASSETS
-   *
-   * Cache-first:
-   * - Use the cached version when available.
-   * - If not cached, request it from the network.
-   * - Successfully downloaded same-origin assets are then cached.
-   */
+  /* =======================================================
+     STATIC FILES / ASSETS
+     ======================================================= */
+
   event.respondWith(
+
     caches.match(request)
       .then(cached => {
 
@@ -132,6 +174,10 @@ self.addEventListener('fetch', event => {
           return cached;
         }
 
+
+        /*
+         * If the file isn't cached yet, try the network.
+         */
 
         return fetch(request)
           .then(response => {
@@ -141,17 +187,25 @@ self.addEventListener('fetch', event => {
               response.ok &&
               new URL(request.url).origin === self.location.origin
             ) {
+
               caches.open(CACHE_NAME)
                 .then(cache => {
+
                   cache.put(
                     request,
                     response.clone()
                   );
+
                 });
+
             }
 
             return response;
+
           });
+
       })
+
   );
+
 });
