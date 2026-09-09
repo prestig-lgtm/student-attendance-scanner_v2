@@ -282,7 +282,11 @@ function ensureQrLibrary() {
       document.head.appendChild(script);
     };
     load("./html5-qrcode.min.js", () => {
-      load("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js", null);
+      if (navigator.onLine) {
+        load("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js", null);
+      } else {
+        resolve(false);
+      }
     });
   });
   return window.__qrLibraryPromise;
@@ -3522,6 +3526,33 @@ if (navigator.onLine) {
 
 
 /* =====================================================
+   OFFLINE APP BOOTSTRAP
+   - Registers the service worker as early as possible.
+   - The service worker caches the complete app shell, including the local
+     QR library, so an already-visited GitHub Pages app can reopen offline.
+===================================================== */
+(function ensureOfflineAppReady() {
+  if (!("serviceWorker" in navigator)) return;
+
+  function registerOfflineWorker() {
+    navigator.serviceWorker.register("./service-worker.js?v=5", { scope: "./" })
+      .then(function(registration) {
+        console.log("Offline service worker registered:", registration.scope);
+        if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      })
+      .catch(function(error) {
+        console.warn("Offline service worker registration failed:", error);
+      });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", registerOfflineWorker, { once: true });
+  } else {
+    registerOfflineWorker();
+  }
+})();
+
+/* =====================================================
    SERVICE WORKER REGISTRATION
 ===================================================== */
 
@@ -3536,7 +3567,7 @@ if (
 
             navigator.serviceWorker
                 .register(
-                    "./service-worker.js"
+                    "./service-worker.js?v=5"
                 )
                 .then(
                     function(registration) {
@@ -4084,28 +4115,87 @@ window.addEventListener("load", function(){
 <script id="pwaInstallManager">
 (function () {
   let deferredInstallPrompt = null;
-  const PROMPT_DISMISSED_KEY = "psabe_install_prompt_dismissed";
+  let installPromptWasShown = false;
 
   function isStandalone() {
-    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    return window.matchMedia("(display-mode: standalone)").matches ||
+           window.navigator.standalone === true ||
+           document.referrer.startsWith("android-app://");
+  }
+
+  function getEls() {
+    return {
+      prompt: document.getElementById("pwaInstallPrompt"),
+      title: document.getElementById("pwaInstallTitle"),
+      text: document.querySelector("#pwaInstallPrompt .pwa-install-text"),
+      installButton: document.getElementById("pwaInstallNow")
+    };
   }
 
   function showInstallPrompt() {
-    if (isStandalone() || !deferredInstallPrompt) return;
-    const prompt = document.getElementById("pwaInstallPrompt");
-    if (prompt) prompt.classList.add("show");
+    if (isStandalone() || installPromptWasShown) return;
+
+    const els = getEls();
+    if (!els.prompt) return;
+
+    installPromptWasShown = true;
+
+    if (deferredInstallPrompt) {
+      if (els.title) els.title.textContent = "Install PSABE-PPG Attendance";
+      if (els.text) {
+        els.text.textContent =
+          "Install it on this device for faster access, its own app window, and reliable offline use.";
+      }
+      if (els.installButton) {
+        els.installButton.textContent = "Install";
+        els.installButton.disabled = false;
+      }
+    } else {
+      // Some browsers do not expose beforeinstallprompt even when the site
+      // can be installed. Do not hide the popup completely in that case.
+      if (els.title) els.title.textContent = "Install PSABE-PPG Attendance";
+      if (els.text) {
+        els.text.textContent =
+          "The browser has not provided its install prompt yet. Open your browser menu and choose “Install app” or “Add to Home screen”.";
+      }
+      if (els.installButton) {
+        els.installButton.textContent = "How to Install";
+        els.installButton.disabled = false;
+      }
+    }
+
+    els.prompt.classList.add("show");
   }
 
   function hideInstallPrompt() {
-    const prompt = document.getElementById("pwaInstallPrompt");
-    if (prompt) prompt.classList.remove("show");
+    const els = getEls();
+    if (els.prompt) els.prompt.classList.remove("show");
+  }
+
+  function refreshInstallAvailability() {
+    if (isStandalone()) {
+      hideInstallPrompt();
+      return;
+    }
+
+    const els = getEls();
+    if (!els.installButton) return;
+
+    if (deferredInstallPrompt) {
+      els.installButton.textContent = "Install";
+      els.installButton.disabled = false;
+    }
   }
 
   window.addEventListener("beforeinstallprompt", function (event) {
     event.preventDefault();
     deferredInstallPrompt = event;
-    // Show the install popup automatically when the browser says the app is installable.
-    setTimeout(showInstallPrompt, 900);
+    console.log("PWA install prompt is available.");
+
+    // If our fallback popup is already visible, immediately upgrade it to
+    // the real browser install button.
+    refreshInstallAvailability();
+    if (!isStandalone()) showInstallPrompt();
   });
 
   window.addEventListener("appinstalled", function () {
@@ -4124,26 +4214,83 @@ window.addEventListener("load", function(){
     }
 
     if (!installButton) return;
-    if (!deferredInstallPrompt) {
+
+    // The real browser prompt is available.
+    if (deferredInstallPrompt) {
+      const promptEvent = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+
+      try {
+        promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+        console.log("PWA install choice:", choice.outcome);
+      } catch (error) {
+        console.warn("PWA install prompt error:", error);
+      }
+
       hideInstallPrompt();
       return;
     }
 
-    deferredInstallPrompt.prompt();
-    try {
-      const choice = await deferredInstallPrompt.userChoice;
-      console.log("PWA install choice:", choice.outcome);
-    } catch (error) {
-      console.warn("PWA install prompt error:", error);
+    // Fallback: the browser did not expose beforeinstallprompt.
+    // Keep the app functional and explain where the native install command is.
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isAndroid = /android/i.test(navigator.userAgent);
+
+    if (isIOS) {
+      alert("To install PSABE-PPG Attendance on iPhone/iPad:\n\n1. Tap Share in Safari.\n2. Choose “Add to Home Screen”.\n3. Tap Add.");
+    } else if (isAndroid) {
+      alert("To install PSABE-PPG Attendance on Android:\n\n1. Open the browser menu (⋮).\n2. Choose “Install app” or “Add to Home screen”.\n3. Confirm the installation.");
+    } else {
+      alert("To install PSABE-PPG Attendance:\n\nOpen your browser menu and choose “Install app” or “Add to desktop/home screen”.");
     }
-    deferredInstallPrompt = null;
-    hideInstallPrompt();
   });
 
-  // iOS/Safari cannot use beforeinstallprompt. Keep the app installable through
-  // Safari's Share -> Add to Home Screen flow, but do not show a misleading button.
-  window.addEventListener("load", function () {
-    if (isStandalone()) hideInstallPrompt();
+  // Do not rely only on beforeinstallprompt. After uninstalling an app,
+  // browsers may delay or omit that event. Show our own popup so the user
+  // still gets an installation path.
+  function bootInstallUI() {
+    if (isStandalone()) {
+      hideInstallPrompt();
+      return;
+    }
+
+    setTimeout(showInstallPrompt, 1800);
+
+    // Re-check after the service worker has had time to activate/update.
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready
+        .then(function () {
+          setTimeout(function () {
+            if (!isStandalone() && !deferredInstallPrompt) {
+              showInstallPrompt();
+            }
+          }, 900);
+        })
+        .catch(function () {});
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootInstallUI, { once: true });
+  } else {
+    bootInstallUI();
+  }
+
+  window.addEventListener("pageshow", function () {
+    if (!isStandalone()) {
+      installPromptWasShown = false;
+      setTimeout(refreshInstallAvailability, 300);
+      setTimeout(function () {
+        if (!isStandalone()) showInstallPrompt();
+      }, 800);
+    }
+  });
+
+  window.addEventListener("focus", function () {
+    if (!isStandalone() && !document.getElementById("pwaInstallPrompt")?.classList.contains("show")) {
+      setTimeout(showInstallPrompt, 300);
+    }
   });
 })();
 </script>
