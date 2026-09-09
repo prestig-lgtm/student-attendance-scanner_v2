@@ -1,82 +1,157 @@
-const CACHE_NAME = 'psabe-ppg-attendance-v3';
-const APP_SHELL = ['./', './index.html', './manifest.json'];
+const CACHE_NAME = 'psabe-ppg-attendance-v5';
+
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.json',
+  './service-worker.js',
+  './html5-qrcode.min.js',
+  './assets/icon-192.png',
+  './assets/icon-512.png',
+  './assets/psabe-logo.png'
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
+      .then(async cache => {
+        // Cache each asset independently.
+        // If an optional asset is missing from the deployment,
+        // the service worker will still install successfully.
+        await Promise.all(
+          APP_SHELL.map(async asset => {
+            try {
+              const response = await fetch(asset, {
+                cache: 'no-store'
+              });
+
+              if (response && response.ok) {
+                await cache.put(asset, response);
+              }
+            } catch (error) {
+              console.warn(
+                'Offline cache skipped:',
+                asset,
+                error
+              );
+            }
+          })
+        );
+      })
       .then(() => self.skipWaiting())
   );
 });
 
+
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => caches.delete(key))
+    caches.keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
       )
-    ).then(() => self.clients.claim())
+      .then(() => self.clients.claim())
   );
 });
+
 
 self.addEventListener('fetch', event => {
   const request = event.request;
 
   // Only handle GET requests.
-  if (request.method !== 'GET') return;
+  if (request.method !== 'GET') {
+    return;
+  }
 
   const url = new URL(request.url);
 
+
   /*
-   * Always try the network for index.html.
-   * This makes sure updates to the attendance system,
-   * including the Philippine clock, are picked up.
+   * APP NAVIGATION
+   *
+   * Cache-first strategy:
+   * - If the app is already cached, open it immediately offline.
+   * - When internet is available, refresh the cached index.html
+   *   in the background.
    */
   if (
     request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html')
   ) {
     event.respondWith(
-      fetch(request, { cache: 'no-store' })
-        .then(response => {
-          const copy = response.clone();
+      caches.match(request)
+        .then(cached => {
 
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(request, copy);
-          });
+          const networkRefresh = fetch(request, {
+            cache: 'no-store'
+          })
+            .then(response => {
 
-          return response;
+              if (response && response.ok) {
+                caches.open(CACHE_NAME)
+                  .then(cache => {
+                    cache.put(
+                      './index.html',
+                      response.clone()
+                    );
+                  });
+              }
+
+              return response;
+            })
+            .catch(() => null);
+
+
+          // Return cached app immediately if available.
+          return cached || networkRefresh.then(response =>
+            response || caches.match('./index.html')
+          );
         })
-        .catch(() =>
-          caches.match(request).then(
-            response =>
-              response || caches.match('./index.html')
-          )
-        )
     );
 
     return;
   }
 
+
   /*
-   * For other files:
-   * Use the cached version when available.
-   * If not cached, download it and save it.
+   * STATIC APP ASSETS
+   *
+   * Cache-first:
+   * - Use the cached version when available.
+   * - If not cached, request it from the network.
+   * - Successfully downloaded same-origin assets are then cached.
    */
   event.respondWith(
-    caches.match(request).then(cached =>
-      cached ||
-      fetch(request).then(response => {
-        const copy = response.clone();
+    caches.match(request)
+      .then(cached => {
 
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(request, copy);
-        });
+        if (cached) {
+          return cached;
+        }
 
-        return response;
+
+        return fetch(request)
+          .then(response => {
+
+            if (
+              response &&
+              response.ok &&
+              new URL(request.url).origin === self.location.origin
+            ) {
+              caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(
+                    request,
+                    response.clone()
+                  );
+                });
+            }
+
+            return response;
+          });
       })
-    )
   );
 });
