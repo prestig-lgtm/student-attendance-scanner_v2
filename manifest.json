@@ -1,17 +1,23 @@
 {
+  "id": "./",
   "name": "PSABE-PPG CSU Chapter Attendance System",
   "short_name": "PSABE Attendance",
-  "description": "PSABE-PPG CSU Chapter Attendance System",
+  "description": "PSABE-PPG CSU Chapter Attendance System for student attendance scanning and records.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "display_override": [
-    "window-controls-overlay",
     "standalone"
   ],
   "orientation": "portrait",
   "background_color": "#071a12",
-  "theme_color": "#0b3d2e",
+  "theme_color": "#063d2d",
+  "prefer_related_applications": false,
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "./assets/icon-192.png",
