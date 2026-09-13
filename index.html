@@ -405,6 +405,19 @@ button{cursor:pointer}
   transform:none !important;
   z-index:1 !important;
 }
+/* Mobile scanner viewport must remain portrait even if a phone reports
+   a landscape camera sensor stream. */
+@media (max-width:560px){
+  .scanner-window{
+    width:calc(100% - 20px) !important;
+    height:auto !important;
+    aspect-ratio:9 / 16 !important;
+  }
+  #reader,#reader__scan_region{
+    width:100% !important;
+    height:100% !important;
+  }
+}
 /* Keep the scanner viewport visually portrait even when the device/browser is landscape. */
 .scanner-window{
   aspect-ratio:9/16;
@@ -593,7 +606,10 @@ button{cursor:pointer}
   .clock-row{font-size:16px}.clock-icon{font-size:21px}#currentDate{font-size:11px;margin-left:0}
   .stats{gap:10px}.stat-card{min-height:125px;padding:13px;border-radius:16px;gap:9px}.stat-card.incomplete{min-height:70px}
   .stat-icon{width:39px;height:39px;font-size:21px}.stat-label{font-size:12px;margin-top:2px}.stat-value{font-size:29px;margin-top:5px}.stat-desc{font-size:11px}
-  .card{border-radius:15px}.card-head,.recent-head{padding:0 15px}.scanner-window{margin:0 10px 7px;height:205px}.scan-frame{width:190px;height:175px}.manual-section,.sound{padding-left:15px;padding-right:15px}
+  .card{border-radius:15px}.card-head,.recent-head{padding:0 15px}
+  .scanner-window{margin:0 auto 7px;width:calc(100% - 20px);height:auto !important;aspect-ratio:9 / 16 !important;min-height:0 !important;max-height:430px}
+  .scan-frame{width:82%;height:auto;aspect-ratio:1 / 1}
+  .manual-section,.sound{padding-left:15px;padding-right:15px}
   .manual-row{grid-template-columns:1fr}.manual-row input{width:100%;min-width:0;box-sizing:border-box}.submit-btn{width:100%;min-height:52px;font-size:15px;cursor:pointer}.sound-row{gap:7px}.sound-btn{font-size:11px}
   .recent-list{padding-left:10px;padding-right:10px}.recent-row{grid-template-columns:28px 1fr 1fr 90px;height:45px;font-size:11px}.times{font-size:10px}.badge{padding:5px 8px}
   .action-row{gap:10px}.action{height:60px;padding:0 14px}.action strong{font-size:12px}.action span{font-size:10px}.action .bigicon{font-size:23px}
@@ -1257,7 +1273,7 @@ body.all-attendees-open{overflow:hidden}
     </div>
     <div class="scanner-status">
       <b>●</b> <span id="scannerStatus">Starting camera…</span><br>
-      <span style="font-weight:400">Position QR Code within the square to scan</span>
+      <span style="font-weight:400">Center the QR Code in the camera view for fastest scanning</span>
       <button id="startCameraBtn" type="button" onclick="startQrScanner(true)" style="display:none;margin:10px auto 0;padding:9px 16px;border:0;border-radius:9px;background:#08a84f;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15)">START CAMERA</button>
     </div>
 
@@ -3131,25 +3147,28 @@ async function startQrScanner(userRequested = false) {
         await qrCameraScanner.start(
             cameraSource,
             {
-                fps: 20,
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    const size = Math.floor(
-                        Math.min(viewfinderWidth, viewfinderHeight) * 0.86
-                    );
-                    return { width: size, height: size };
-                },
+                /*
+                 * Use the full camera frame for QR detection.
+                 * This is more tolerant when the QR is not perfectly centered
+                 * or when its edges are slightly covered.
+                 */
+                fps: 15,
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true
-                },
+
+                /*
+                 * Request a high-resolution rear-camera stream.
+                 * We intentionally do not force a portrait aspect ratio here.
+                 * Many phones expose their physical camera sensor as 16:9
+                 * even when the device is held vertically.
+                 */
                 videoConstraints: {
-                    facingMode: { ideal: "environment" },
-                    width: { ideal: 1080 },
-                    height: { ideal: 1920 },
+                    width: { ideal: 1920, min: 1280 },
+                    height: { ideal: 1080, min: 720 },
                     frameRate: { ideal: 30, max: 60 }
                 },
-                aspectRatio: 0.5625,
-                disableFlip: true
+
+                /* Let html5-qrcode use the native camera orientation. */
+                disableFlip: false
             },
             onScanSuccess,
             onScanFailure
@@ -3167,7 +3186,7 @@ async function startQrScanner(userRequested = false) {
 
         if (status) {
             status.textContent =
-                "● Camera ready — position QR Code within the square to scan";
+                "● Camera ready — Center the QR Code in the camera view for fastest scanning";
             status.style.color = "#16a34a";
         }
 
