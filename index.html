@@ -1187,6 +1187,81 @@ body.all-attendees-open{overflow:hidden}
 
 </head>
 <body>
+<script id="philippine-live-clock">
+(function () {
+  "use strict";
+  var timer = null;
+  var TZ = "Asia/Manila";
+
+  function update() {
+    var clock = document.getElementById("liveClock");
+    var date = document.getElementById("currentDate");
+
+    if (!clock) {
+      timer = setTimeout(update, 100);
+      return;
+    }
+
+    var now = new Date();
+
+    try {
+      clock.textContent = new Intl.DateTimeFormat("en-PH", {
+        timeZone: TZ,
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      }).format(now);
+
+      if (date) {
+        date.textContent = new Intl.DateTimeFormat("en-PH", {
+          timeZone: TZ,
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        }).format(now);
+      }
+    } catch (e) {
+      // Philippines is always UTC+8. This fallback does not depend on Intl.
+      var ph = new Date(Date.now() + 8 * 60 * 60 * 1000);
+      var h = ph.getUTCHours();
+      var ap = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      clock.textContent = h + ":" +
+        String(ph.getUTCMinutes()).padStart(2, "0") + ":" +
+        String(ph.getUTCSeconds()).padStart(2, "0") + " " + ap;
+
+      if (date) {
+        var months = ["January","February","March","April","May","June",
+          "July","August","September","October","November","December"];
+        date.textContent = months[ph.getUTCMonth()] + " " +
+          ph.getUTCDate() + ", " + ph.getUTCFullYear();
+      }
+    }
+
+    timer = setTimeout(update, 1000);
+  }
+
+  function boot() {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    update();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("pageshow", boot);
+  window.addEventListener("focus", boot);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) boot();
+  });
+})();
+</script>
+
 <div id="pwaInstallPrompt" class="pwa-install-backdrop" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
   <div class="pwa-install-card">
     <div class="pwa-install-top">
@@ -2229,14 +2304,6 @@ function getDisplayDate() {
     );
 
 }
-
-
-document.getElementById(
-    "currentDate"
-).textContent =
-getDisplayDate();
-
-
 /* =====================================================
    CONNECTION STATUS
 ===================================================== */
@@ -3096,8 +3163,8 @@ async function startQrScanner(userRequested = false) {
 
     if (status) {
         status.textContent = userRequested
-            ? "Requesting camera access…"
-            : "Starting camera…";
+            ? "Requesting rear camera access…"
+            : "Starting rear camera…";
         status.style.color = "#d97706";
     }
 
@@ -3106,7 +3173,6 @@ async function startQrScanner(userRequested = false) {
     }
 
     try {
-
         /* Make sure the real QR decoder library is available. */
         const libraryReady = await ensureQrLibrary();
 
@@ -3114,67 +3180,69 @@ async function startQrScanner(userRequested = false) {
             throw new Error("QR scanner library could not be loaded.");
         }
 
-        /* Create the camera scanner. */
+        /* Clean up any previous scanner instance. */
+        await cleanupQrScanner();
+
+        /* Create a fresh scanner. */
         qrCameraScanner = new Html5Qrcode("reader");
 
-        /* Ask the browser for actual physical cameras. */
-        let cameras = [];
-
-        try {
-            cameras = await Html5Qrcode.getCameras();
-        } catch (cameraListError) {
-            console.warn("Camera enumeration failed:", cameraListError);
-        }
-
-        /* Prefer the rear camera on phones. */
-        let cameraId = null;
-
-        if (cameras && cameras.length) {
-            const rearCamera = cameras.find(camera =>
-                /back|rear|environment|world|traseira|trasera/i.test(
-                    camera.label || ""
-                )
-            );
-
-            cameraId = (rearCamera || cameras[0]).id;
-        }
-
-        const cameraSource = cameraId || {
-            facingMode: { ideal: "environment" }
+        /*
+         * IMPORTANT:
+         * Request the environment-facing camera directly.
+         * We do NOT use cameras[0], because camera index 0 can be
+         * the selfie/front camera on some mobile browsers.
+         */
+        const cameraSource = {
+            facingMode: {
+                exact: "environment"
+            }
         };
 
-        /* Start the REAL video stream. */
+        /* Start the REAL rear-camera video stream. */
         await qrCameraScanner.start(
             cameraSource,
             {
                 /*
-                 * Use the full camera frame for QR detection.
-                 * This is more tolerant when the QR is not perfectly centered
-                 * or when its edges are slightly covered.
+                 * Full-frame detection. No qrbox is used so the decoder
+                 * can inspect the complete camera frame.
                  */
                 fps: 15,
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
 
                 /*
-                 * Request a high-resolution rear-camera stream.
-                 * We intentionally do not force a portrait aspect ratio here.
-                 * Many phones expose their physical camera sensor as 16:9
-                 * even when the device is held vertically.
+                 * Request a high-quality stream while explicitly requiring
+                 * the rear/environment camera.
                  */
                 videoConstraints: {
-                    width: { ideal: 1920, min: 1280 },
-                    height: { ideal: 1080, min: 720 },
-                    frameRate: { ideal: 30, max: 60 }
+                    facingMode: {
+                        exact: "environment"
+                    },
+                    width: {
+                        ideal: 1920,
+                        min: 1280
+                    },
+                    height: {
+                        ideal: 1080,
+                        min: 720
+                    },
+                    frameRate: {
+                        ideal: 30,
+                        max: 60
+                    }
                 },
 
-                /* Let html5-qrcode use the native camera orientation. */
+                /* Do not mirror the rear camera. */
                 disableFlip: false
             },
             onScanSuccess,
             onScanFailure
         );
 
-        /* Ask supported browsers to keep the physical display portrait while scanning. */
+        /*
+         * Ask supported browsers to keep the device display portrait.
+         * This affects the screen orientation, not which physical camera
+         * is selected.
+         */
         try {
             if (screen.orientation && typeof screen.orientation.lock === "function") {
                 await screen.orientation.lock("portrait").catch(() => {});
@@ -3186,18 +3254,49 @@ async function startQrScanner(userRequested = false) {
 
         if (status) {
             status.textContent =
-                "● Camera ready — Center the QR Code in the camera view for fastest scanning";
+                "● Rear camera ready — Center the QR Code in the camera view for fastest scanning";
             status.style.color = "#16a34a";
         }
 
-        console.log(
-            "REAL CAMERA SCANNER STARTED",
-            cameraId || "environment camera"
-        );
+        /*
+         * Apply continuous autofocus when the browser exposes it.
+         * This improves QR recognition at different distances.
+         */
+        setTimeout(async () => {
+            try {
+                const reader = document.getElementById("reader");
+                const video = reader ? reader.querySelector("video") : null;
+
+                if (!video || !video.srcObject) return;
+
+                const tracks = video.srcObject.getVideoTracks();
+                if (!tracks || !tracks.length) return;
+
+                const track = tracks[0];
+                const capabilities =
+                    typeof track.getCapabilities === "function"
+                        ? track.getCapabilities()
+                        : {};
+
+                if (
+                    capabilities.focusMode &&
+                    capabilities.focusMode.includes("continuous") &&
+                    typeof track.applyConstraints === "function"
+                ) {
+                    await track.applyConstraints({
+                        advanced: [{ focusMode: "continuous" }]
+                    }).catch(() => {});
+                }
+            } catch (focusError) {
+                console.warn("Continuous autofocus is not available:", focusError);
+            }
+        }, 500);
+
+        console.log("REAR CAMERA SCANNER STARTED");
 
     } catch (error) {
 
-        console.error("Real camera scanner error:", error);
+        console.error("Rear camera scanner error:", error);
 
         qrCameraStarting = false;
         qrCameraRunning = false;
@@ -3211,21 +3310,33 @@ async function startQrScanner(userRequested = false) {
                     : error || ""
             ).toLowerCase();
 
-            if (error && error.name === "NotAllowedError" || text.includes("permission")) {
+            if (
+                (error && error.name === "NotAllowedError") ||
+                text.includes("permission")
+            ) {
                 status.textContent =
-                    "Camera permission denied — allow camera access and reload the page.";
-            } else if (error && error.name === "NotFoundError" || text.includes("not found")) {
+                    "Rear camera permission denied — allow camera access and reload the page.";
+            } else if (
+                (error && error.name === "NotFoundError") ||
+                text.includes("not found")
+            ) {
                 status.textContent =
-                    "No camera detected on this device.";
+                    "No rear camera detected on this device.";
+            } else if (
+                (error && error.name === "OverconstrainedError") ||
+                text.includes("constraint")
+            ) {
+                status.textContent =
+                    "The rear camera could not be selected on this browser.";
             } else if (error && error.name === "NotReadableError") {
                 status.textContent =
-                    "Camera is already being used by another application.";
+                    "Rear camera is already being used by another application.";
             } else if (text.includes("secure") || text.includes("https")) {
                 status.textContent =
                     "Camera requires HTTPS — open the GitHub Pages site.";
             } else {
                 status.textContent =
-                    "Unable to start camera — allow camera access and try again.";
+                    "Unable to start the rear camera — allow camera access and try again.";
             }
         }
 
@@ -3236,7 +3347,6 @@ async function startQrScanner(userRequested = false) {
         await cleanupQrScanner();
     }
 }
-
 async function stopQrScanner() {
     await cleanupQrScanner();
 }
@@ -3687,7 +3797,7 @@ if (
 
             navigator.serviceWorker
                 .register(
-                    "./service-worker.js?v=8"
+                    "./service-worker.js?v=9"
                 )
                 .then(
                     function(registration) {
@@ -3722,80 +3832,7 @@ if (
    LIVE PHILIPPINE CLOCK
    Always displays Philippine Standard Time (UTC+8).
 ===================================================== */
-(function startLivePhilippineClock() {
-  const TIME_ZONE = "Asia/Manila";
-  let timer = null;
 
-  function getPhilippineDateParts() {
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: TIME_ZONE,
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "numeric", minute: "2-digit", second: "2-digit",
-        hour12: true
-      }).formatToParts(new Date());
-      const out = {};
-      parts.forEach(p => { if (p.type !== "literal") out[p.type] = p.value; });
-      return out;
-    } catch (_) {
-      const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
-      let hour = d.getUTCHours();
-      const period = hour >= 12 ? "PM" : "AM";
-      hour = hour % 12 || 12;
-      return {
-        year: String(d.getUTCFullYear()),
-        month: String(d.getUTCMonth() + 1).padStart(2, "0"),
-        day: String(d.getUTCDate()).padStart(2, "0"),
-        hour: String(hour),
-        minute: String(d.getUTCMinutes()).padStart(2, "0"),
-        second: String(d.getUTCSeconds()).padStart(2, "0"),
-        dayPeriod: period
-      };
-    }
-  }
-
-  function updateLiveClock() {
-    const clock = document.getElementById("liveClock");
-    const dateEl = document.getElementById("currentDate");
-    if (!clock) {
-      timer = setTimeout(updateLiveClock, 250);
-      return;
-    }
-
-    try {
-      const p = getPhilippineDateParts();
-      clock.textContent = `${p.hour}:${p.minute}:${p.second} ${p.dayPeriod}`;
-      if (dateEl) {
-        const monthName = new Intl.DateTimeFormat("en-US", {
-          timeZone: TIME_ZONE, month: "long"
-        }).format(new Date(`${p.year}-${p.month}-${p.day}T00:00:00+08:00`));
-        dateEl.textContent = `${monthName} ${Number(p.day)}, ${p.year}`;
-      }
-    } catch (error) {
-      console.error("Live Philippine clock error:", error);
-    }
-
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(updateLiveClock, 1000);
-  }
-
-  function restartClock() {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    updateLiveClock();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", restartClock, { once: true });
-  } else {
-    restartClock();
-  }
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) restartClock();
-  });
-  window.addEventListener("focus", restartClock);
-  window.addEventListener("pageshow", restartClock);
-})();
 
 function updatePendingCount() {
   const el = document.getElementById("pendingCount");
