@@ -399,8 +399,39 @@ button{cursor:pointer}
   width:100% !important;
   height:100% !important;
   max-width:none !important;
+  max-height:none !important;
   object-fit:cover !important;
+  object-position:center center !important;
+  transform:none !important;
   z-index:1 !important;
+}
+/* Keep the scanner viewport visually portrait even when the device/browser is landscape. */
+.scanner-window{
+  aspect-ratio:9/16;
+  height:auto;
+  min-height:225px;
+  max-height:420px;
+}
+@media (min-width:561px){
+  .scanner-window{max-width:360px;margin-left:auto;margin-right:auto;}
+}
+@media (max-width:560px){
+  .scanner-window{
+    width:calc(100% - 20px);
+    margin-left:10px;
+    margin-right:10px;
+    min-height:0;
+  }
+}
+@media (orientation:landscape) and (max-width:900px){
+  .scanner-window{
+    width:min(58vw,360px);
+    height:min(82vh,520px);
+    aspect-ratio:9/16;
+    min-height:0;
+    margin-left:auto;
+    margin-right:auto;
+  }
 }
 /* Hide only the library's controls; never hide the camera video. */
 #reader__dashboard,
@@ -455,7 +486,7 @@ button{cursor:pointer}
 .recent{padding-bottom:0}
 .recent-head{height:50px;padding:0 26px;display:flex;align-items:center;justify-content:space-between;font-weight:900;border-bottom:1px solid #dce3df}
 .recent-head button{background:none;border:0;color:#19392f;font-weight:900}
-.recent-list{padding:0 20px 7px}
+.recent-list{padding:0 20px 7px;max-height:360px;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .recent-row{height:39px;display:grid;grid-template-columns:35px 1fr 1fr 140px;align-items:center;border-bottom:1px solid #e0e5e2;font-size:13px}
 .person-icon{width:24px;height:24px;border-radius:50%;background:#e4f3ea;display:grid;place-items:center;color:#0b8243}
 .person-name{font-weight:800}.times{font-size:12px;color:#3e4a45}
@@ -3100,17 +3131,36 @@ async function startQrScanner(userRequested = false) {
         await qrCameraScanner.start(
             cameraSource,
             {
-                fps: 10,
-                qrbox: {
-                    width: 200,
-                    height: 200
+                fps: 20,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    const size = Math.floor(
+                        Math.min(viewfinderWidth, viewfinderHeight) * 0.86
+                    );
+                    return { width: size, height: size };
                 },
-                aspectRatio: 1.7777778,
-                disableFlip: false
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                },
+                videoConstraints: {
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 },
+                    frameRate: { ideal: 30, max: 60 }
+                },
+                aspectRatio: 0.5625,
+                disableFlip: true
             },
             onScanSuccess,
             onScanFailure
         );
+
+        /* Ask supported browsers to keep the physical display portrait while scanning. */
+        try {
+            if (screen.orientation && typeof screen.orientation.lock === "function") {
+                await screen.orientation.lock("portrait").catch(() => {});
+            }
+        } catch (_) {}
 
         qrCameraRunning = true;
         qrCameraStarting = false;
@@ -3618,7 +3668,7 @@ if (
 
             navigator.serviceWorker
                 .register(
-                    "./service-worker.js"
+                    "./service-worker.js?v=8"
                 )
                 .then(
                     function(registration) {
@@ -3651,59 +3701,76 @@ if (
 /* UI ENHANCEMENTS */
 /* =====================================================
    LIVE PHILIPPINE CLOCK
-   - Always formats using Asia/Manila (UTC+8 / Philippine Standard Time).
-   - Updates every second.
-   - Re-syncs immediately when the page becomes visible again.
-   - Uses a timeout aligned to the next second so it does not slowly drift.
+   Always displays Philippine Standard Time (UTC+8).
 ===================================================== */
 (function startLivePhilippineClock() {
   const TIME_ZONE = "Asia/Manila";
   let timer = null;
 
-  const clockFormatter = new Intl.DateTimeFormat("en-PH", {
-    timeZone: TIME_ZONE,
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  });
-
-  const dateFormatter = new Intl.DateTimeFormat("en-PH", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
+  function getPhilippineDateParts() {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "numeric", minute: "2-digit", second: "2-digit",
+        hour12: true
+      }).formatToParts(new Date());
+      const out = {};
+      parts.forEach(p => { if (p.type !== "literal") out[p.type] = p.value; });
+      return out;
+    } catch (_) {
+      const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
+      let hour = d.getUTCHours();
+      const period = hour >= 12 ? "PM" : "AM";
+      hour = hour % 12 || 12;
+      return {
+        year: String(d.getUTCFullYear()),
+        month: String(d.getUTCMonth() + 1).padStart(2, "0"),
+        day: String(d.getUTCDate()).padStart(2, "0"),
+        hour: String(hour),
+        minute: String(d.getUTCMinutes()).padStart(2, "0"),
+        second: String(d.getUTCSeconds()).padStart(2, "0"),
+        dayPeriod: period
+      };
+    }
+  }
 
   function updateLiveClock() {
     const clock = document.getElementById("liveClock");
     const dateEl = document.getElementById("currentDate");
-
     if (!clock) {
       timer = setTimeout(updateLiveClock, 250);
       return;
     }
 
     try {
-      const now = new Date();
-      clock.textContent = clockFormatter.format(now);
-      if (dateEl) dateEl.textContent = dateFormatter.format(now);
+      const p = getPhilippineDateParts();
+      clock.textContent = `${p.hour}:${p.minute}:${p.second} ${p.dayPeriod}`;
+      if (dateEl) {
+        const monthName = new Intl.DateTimeFormat("en-US", {
+          timeZone: TIME_ZONE, month: "long"
+        }).format(new Date(`${p.year}-${p.month}-${p.day}T00:00:00+08:00`));
+        dateEl.textContent = `${monthName} ${Number(p.day)}, ${p.year}`;
+      }
     } catch (error) {
       console.error("Live Philippine clock error:", error);
     }
 
-    // Align the next update close to the next real second boundary.
-    const delay = 1000 - (Date.now() % 1000) + 10;
-    timer = setTimeout(updateLiveClock, delay);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(updateLiveClock, 1000);
   }
 
   function restartClock() {
     if (timer) clearTimeout(timer);
+    timer = null;
     updateLiveClock();
   }
 
-  // Start as soon as the script is reached, and restart after page resume.
-  restartClock();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restartClock, { once: true });
+  } else {
+    restartClock();
+  }
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) restartClock();
   });
@@ -4083,7 +4150,7 @@ updateActiveSheetUI();
     const records=(attendanceRecords||[]).filter(r=>
       (!today || r.date===today) &&
       (r.sheetId || attendanceSheets[0].id)===activeId
-    ).slice(-8).reverse();
+    ).reverse();
 
     if(!records.length){
       el.innerHTML='<div style="padding:24px;text-align:center;color:#6d7772;font-size:13px">No attendance records yet.</div>';
