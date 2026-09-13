@@ -254,17 +254,16 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#003c2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PSABE-PPG CSU Chapter — Attendance System</title>
 <meta name="theme-color" content="#063d2d">
-<meta name="application-name" content="PSABE-PPG Attendance">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PSABE-PPG Attendance">
-<meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="./manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
-<link rel="apple-touch-icon" sizes="192x192" href="./assets/icon-192.png">
-<title>PSABE-PPG CSU Chapter — Attendance System</title>
+<link rel="apple-touch-icon" href="./assets/icon-192.png">
 <script>
 /* QR library loader: local GitHub copy first, CDN fallback if the local file is missing. */
 window.__qrLibraryPromise = null;
@@ -283,11 +282,7 @@ function ensureQrLibrary() {
       document.head.appendChild(script);
     };
     load("./html5-qrcode.min.js", () => {
-      if (navigator.onLine) {
-        load("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js", null);
-      } else {
-        resolve(false);
-      }
+      load("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js", null);
     });
   });
   return window.__qrLibraryPromise;
@@ -460,10 +455,7 @@ button{cursor:pointer}
 .recent{padding-bottom:0}
 .recent-head{height:50px;padding:0 26px;display:flex;align-items:center;justify-content:space-between;font-weight:900;border-bottom:1px solid #dce3df}
 .recent-head button{background:none;border:0;color:#19392f;font-weight:900}
-.recent-list{padding:0 20px 7px;max-height:360px;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.recent-list::-webkit-scrollbar{width:7px}
-.recent-list::-webkit-scrollbar-track{background:#eef3f0;border-radius:10px}
-.recent-list::-webkit-scrollbar-thumb{background:#aab8b1;border-radius:10px}
+.recent-list{padding:0 20px 7px}
 .recent-row{height:39px;display:grid;grid-template-columns:35px 1fr 1fr 140px;align-items:center;border-bottom:1px solid #e0e5e2;font-size:13px}
 .person-icon{width:24px;height:24px;border-radius:50%;background:#e4f3ea;display:grid;place-items:center;color:#0b8243}
 .person-name{font-weight:800}.times{font-size:12px;color:#3e4a45}
@@ -953,7 +945,7 @@ button{cursor:pointer}
   padding:8px 20px 7px;border-bottom:1px solid #e0e5e2;
   font-size:9px;font-weight:900;color:#78847e;letter-spacing:.4px;
 }
-.recent-list{padding:0 20px 7px;max-height:360px;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.recent-list{padding:0 20px 7px}
 .recent-row{
   min-height:46px;display:grid;grid-template-columns:1.35fr 1fr 150px;gap:12px;
   align-items:center;border-bottom:1px solid #e0e5e2;font-size:12px;
@@ -972,98 +964,200 @@ button{cursor:pointer}
 }
 </style>
 
+<style id="pwaInstallStyles">
+  .pwa-install-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0, 12, 9, .58);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .pwa-install-backdrop.show { display: flex; }
+  .pwa-install-card {
+    width: min(100%, 430px);
+    border-radius: 24px;
+    padding: 22px;
+    background: linear-gradient(145deg, #073d2d, #02271d);
+    border: 1px solid rgba(120, 240, 190, .22);
+    box-shadow: 0 24px 70px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.06);
+    color: #fff;
+    animation: pwaInstallUp .32s ease-out;
+  }
+  @keyframes pwaInstallUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+  .pwa-install-top { display:flex; align-items:center; gap:14px; }
+  .pwa-install-icon {
+    width:58px; height:58px; flex:0 0 58px; border-radius:16px; object-fit:cover;
+    box-shadow:0 8px 22px rgba(0,0,0,.28);
+  }
+  .pwa-install-title { margin:0; font-size:20px; font-weight:800; }
+  .pwa-install-subtitle { margin:4px 0 0; font-size:13px; opacity:.78; line-height:1.4; }
+  .pwa-install-text { margin:17px 0; font-size:14px; line-height:1.55; opacity:.9; }
+  .pwa-install-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pwa-install-btn { border:0; border-radius:13px; padding:13px 14px; font-weight:800; font-size:14px; cursor:pointer; }
+  .pwa-install-btn.primary { background:#42d39a; color:#03261c; }
+  .pwa-install-btn.secondary { background:rgba(255,255,255,.09); color:#fff; border:1px solid rgba(255,255,255,.12); }
+  @media (max-width:420px) { .pwa-install-backdrop { padding:10px; } .pwa-install-card { border-radius:20px; padding:18px; } }
+</style>
 
-<style id="verticalScannerLayout">
-/* VERTICAL PORTRAIT QR SCANNER */
-.scanner-window {
-  width: min(100%, 360px);
-  height: 520px;
-  aspect-ratio: 9 / 13;
-  margin: 0 auto 8px;
-  border-radius: 18px;
-  overflow: hidden;
-  position: relative;
-  background: #03070a;
+<style>
+/* VIEW ALL ATTENDEES */
+.all-attendees-modal{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(5,24,17,.58);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
 }
-#reader,
-#reader > div,
-#reader__scan_region {
-  width: 100% !important;
-  height: 100% !important;
+.all-attendees-modal.open{display:flex}
+.all-attendees-dialog{
+  width:min(980px,100%);
+  max-height:min(82vh,760px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  background:#f8faf9;
+  border:1px solid #d7e3dc;
+  border-radius:18px;
+  box-shadow:0 24px 70px rgba(0,0,0,.28);
 }
-#reader video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+.all-attendees-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  padding:20px 22px 16px;
+  border-bottom:1px solid #dce6e0;
 }
-/* Keep the QR target square while the camera viewport is portrait. */
-.scan-frame {
-  width: min(72%, 270px);
-  height: auto;
-  aspect-ratio: 1 / 1;
+.all-attendees-kicker{
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:1px;
+  color:#6c7b74;
 }
-@media (max-width: 560px) {
-  .scanner-window {
-    width: min(100%, 330px);
-    height: auto;
-    aspect-ratio: 9 / 13;
-    margin: 0 auto 7px;
+.all-attendees-head h2{
+  margin:4px 0 2px;
+  font-size:22px;
+  letter-spacing:.7px;
+  color:#17392b;
+}
+.all-attendees-subtitle{
+  font-size:12px;
+  color:#68756f;
+}
+.all-attendees-close{
+  width:38px;
+  height:38px;
+  border:0;
+  border-radius:10px;
+  background:#e8efeb;
+  color:#17392b;
+  font-size:27px;
+  line-height:1;
+  cursor:pointer;
+}
+.all-attendees-columns,
+.all-attendee-row{
+  display:grid;
+  grid-template-columns:58px 1.5fr 1fr 150px;
+  gap:12px;
+  align-items:center;
+}
+.all-attendees-columns{
+  padding:10px 22px 8px;
+  border-bottom:1px solid #dce6e0;
+  font-size:10px;
+  font-weight:900;
+  color:#74817b;
+  letter-spacing:.5px;
+}
+.all-attendees-list{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding:0 22px 12px;
+}
+.all-attendee-row{
+  min-height:52px;
+  border-bottom:1px solid #e1e8e4;
+  font-size:13px;
+}
+.all-attendee-no{
+  text-align:center;
+  color:#5d6b64;
+  font-weight:800;
+}
+.all-attendee-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:800;
+  color:#203b30;
+}
+.all-attendee-id{
+  color:#52625a;
+}
+.all-attendee-status{
+  justify-self:start;
+}
+.all-attendees-empty{
+  padding:35px 15px;
+  text-align:center;
+  color:#6d7772;
+}
+body.all-attendees-open{overflow:hidden}
+@media(max-width:640px){
+  .all-attendees-modal{padding:10px}
+  .all-attendees-dialog{max-height:88vh;border-radius:15px}
+  .all-attendees-head{padding:16px 14px 12px}
+  .all-attendees-head h2{font-size:19px}
+  .all-attendees-columns,
+  .all-attendee-row{
+    grid-template-columns:32px 1.25fr .9fr 92px;
+    gap:7px;
   }
-  .scan-frame {
-    width: 72%;
-    height: auto;
-    aspect-ratio: 1 / 1;
+  .all-attendees-columns{
+    padding:8px 12px;
+    font-size:8px;
   }
+  .all-attendees-list{padding:0 12px 10px}
+  .all-attendee-row{min-height:48px;font-size:10px}
+  .all-attendee-status .badge{font-size:8px;padding:5px 6px}
 }
 </style>
 
-<style id="qrCornerGuidelines">
-/* QR GUIDELINES: red corners while scanning, green when a QR is detected. */
-.scan-frame {
-  display:block !important;
-  width:min(72%, 270px);
-  height:auto;
-  aspect-ratio:1 / 1;
-  border:0 !important;
-  border-radius:0 !important;
-  background:transparent !important;
-  box-shadow:none !important;
-}
-.scan-frame .scan-line,
-.scan-frame .fake-qr {
-  display:none !important;
-}
-.scan-corner {
-  position:absolute;
-  width:42px;
-  height:42px;
-  border-color:#ff1f1f !important;
-  border-style:solid !important;
-  z-index:3;
-  filter:drop-shadow(0 0 5px rgba(255,31,31,.65));
-  transition:all .15s ease;
-}
-.scan-frame .c1 { left:-2px; top:-2px; border-width:5px 0 0 5px !important; }
-.scan-frame .c2 { right:-2px; top:-2px; border-width:5px 5px 0 0 !important; }
-.scan-frame .c3 { left:-2px; bottom:-2px; border-width:0 0 5px 5px !important; }
-.scan-frame .c4 { right:-2px; bottom:-2px; border-width:0 5px 5px 0 !important; }
-
-/* Green state appears when onScanSuccess() adds .detected. */
-.scan-frame.detected .scan-corner {
-  border-color:#19ed67 !important;
-  filter:drop-shadow(0 0 7px rgba(25,237,103,.85));
-}
-@media (max-width:560px) {
-  .scan-frame {
-    width:72%;
-    height:auto;
-    aspect-ratio:1 / 1;
-  }
-  .scan-corner { width:38px; height:38px; }
-}
-</style>
 </head>
 <body>
+<div id="pwaInstallPrompt" class="pwa-install-backdrop" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
+  <div class="pwa-install-card">
+    <div class="pwa-install-top">
+      <img class="pwa-install-icon" src="./assets/icon-192.png" alt="PSABE-PPG">
+      <div>
+        <h2 id="pwaInstallTitle" class="pwa-install-title">Install PSABE-PPG Attendance</h2>
+        <p class="pwa-install-subtitle">Install it on this device like a regular app.</p>
+      </div>
+    </div>
+    <p class="pwa-install-text">Get faster access from your home screen, use the app in its own window, and keep the attendance system ready for use.</p>
+    <div class="pwa-install-actions">
+      <button id="pwaInstallNow" class="pwa-install-btn primary" type="button">Install</button>
+      <button id="pwaInstallLater" class="pwa-install-btn secondary" type="button">Not now</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- PSABE-PPG CSU CHAPTER ROTATING LOGO SPLASH SCREEN -->
 <div id="appSplashScreen" class="app-splash-screen" aria-label="Loading PSABE-PPG CSU Chapter Attendance System">
   <div class="splash-content">
@@ -1152,14 +1246,14 @@ button{cursor:pointer}
   </section>
 
   <section class="card recent">
-    <div class="recent-head"><span>☷ &nbsp; RECENT ATTENDANCE</span><button onclick="openAttendanceRecords()">VIEW ALL</button></div>
+    <div class="recent-head"><span>☷ &nbsp; RECENT ATTENDANCE</span><button onclick="openAllRecentAttendance()">VIEW ALL</button></div>
     <div class="recent-columns"><span>NAME</span><span>ID NUMBER</span><span>ATTENDANCE STATUS</span></div>
     <div id="recentList" class="recent-list"></div>
   </section>
 
   <div class="action-row" style="margin-top:14px">
     <button class="action" onclick="exportCSV()"><span class="bigicon">▣</span><span><strong>EXPORT CSV</strong><span>Download attendance records</span></span></button>
-    <button class="action danger" onclick="clearLocalStorageOnly()"><span class="bigicon" aria-hidden="true">🗑️</span><span><strong>CLEAR ALL RECORDS</strong><span>Clear attendance on this device</span></span></button>
+    <button class="action danger" onclick="clearAllSheetsGlobally()"><span class="bigicon" aria-hidden="true">🗑️</span><span><strong>CLEAR ALL RECORDS</strong><span>Clear attendance on all devices</span></span></button>
   </div>
 
   <!-- Hidden compatibility table used by the existing attendance logic -->
@@ -1173,6 +1267,30 @@ button{cursor:pointer}
     <div id="studentInfo" class="student-info"></div>
   </section>
 </main>
+
+
+<!-- VIEW ALL ATTENDEES MODAL -->
+<div id="allAttendeesModal" class="all-attendees-modal" aria-hidden="true">
+  <div class="all-attendees-dialog" role="dialog" aria-modal="true" aria-labelledby="allAttendeesTitle">
+    <div class="all-attendees-head">
+      <div>
+        <div class="all-attendees-kicker">ATTENDANCE RECORDS</div>
+        <h2 id="allAttendeesTitle">ALL ATTENDEES</h2>
+        <div id="allAttendeesSubtitle" class="all-attendees-subtitle"></div>
+      </div>
+      <button class="all-attendees-close" type="button" onclick="closeAllRecentAttendance()" aria-label="Close">×</button>
+    </div>
+
+    <div class="all-attendees-columns">
+      <span>NO.</span>
+      <span>NAME</span>
+      <span>ID NUMBER</span>
+      <span>ATTENDANCE STATUS</span>
+    </div>
+
+    <div id="allAttendeesList" class="all-attendees-list"></div>
+  </div>
+</div>
 
 <nav class="bottom-nav">
   <button class="nav-item active" onclick="window.scrollTo({top:0,behavior:'smooth'})">
@@ -1271,7 +1389,7 @@ button{cursor:pointer}
     <div class="settings-danger">
       <div class="settings-danger-title">⚠ &nbsp; DATA MANAGEMENT</div>
       <button type="button" class="clear-sheets-btn" onclick="event.stopPropagation(); clearAllSheetsGlobally();">CLEAR ALL SHEETS</button>
-      <div class="settings-danger-status">Clears attendance records from Google Sheets and synchronizes the reset to all app devices. Event sheets, student names, and ID numbers are preserved.</div>
+      <div class="settings-danger-status">Permanently clears attendance records from Google Sheets and all app devices. Event sheets, student names, and ID numbers are preserved.</div>
     </div>
   </div>
 </div>
@@ -1290,10 +1408,7 @@ button{cursor:pointer}
   <div class="records-modal" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div><h2>Attendance Records</h2><small style="color:#68756f">Created attendance sheets — select a sheet to view its records</small></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        
-        <button class="btn" style="background:#f0f2f1" onclick="closeAttendanceRecords()">✕</button>
-      </div>
+      <button class="btn" style="background:#f0f2f1" onclick="closeAttendanceRecords()">✕</button>
     </div>
     <div id="sheetList" class="sheet-list"></div>
     <div style="margin-top:12px;font-size:10px;color:#7a857f">Deleting an attendance sheet permanently removes that event sheet from Google Sheets and from this device. Masterlist/year-level sheets are protected.</div>
@@ -1429,47 +1544,53 @@ async function loadServerAttendanceSheets() {
     }
 }
 
-function attendanceRecordKey(record) {
-    if (!record) return "";
-    const sheetKey = String(record.sheetId || "").trim();
-    const studentKey = String(record.studentId || "").trim().toUpperCase();
-    const dateKey = String(record.date || "").trim();
-    return sheetKey + "|" + studentKey + "|" + dateKey;
-}
+function normalizeAttendanceRecords() {
+    if (!Array.isArray(attendanceRecords) || !attendanceRecords.length) return false;
 
-function dedupeAttendanceRecords() {
-    const byKey = new Map();
-    const cleaned = [];
+    const merged = new Map();
+    let changed = false;
 
-    (attendanceRecords || []).forEach(record => {
-        const key = attendanceRecordKey(record);
-        if (!key) {
-            cleaned.push(record);
+    attendanceRecords.forEach(function(record) {
+        if (!record) return;
+
+        const sheetKey = String(record.sheetId || attendanceSheets[0]?.id || "").trim();
+        const studentKey = String(record.studentId || "").trim().toUpperCase();
+        const dateKey = String(record.date || "").trim();
+        const key = sheetKey + "|" + studentKey + "|" + dateKey;
+
+        if (!studentKey || !dateKey) {
+            merged.set("invalid-" + Math.random(), record);
             return;
         }
 
-        const existingIndex = byKey.get(key);
-        if (existingIndex === undefined) {
-            byKey.set(key, cleaned.length);
-            cleaned.push(record);
+        if (!merged.has(key)) {
+            merged.set(key, { ...record, sheetId: sheetKey });
             return;
         }
 
-        const existing = cleaned[existingIndex];
-        // Merge instead of dropping useful Time In / Time Out data.
+        changed = true;
+        const existing = merged.get(key);
+
         existing.studentName = existing.studentName || record.studentName || "";
         existing.timeIn = existing.timeIn || record.timeIn || "";
         existing.timeOut = existing.timeOut || record.timeOut || "";
-        existing.remark = record.remark || existing.remark || "";
-        existing.status = calculateLocalStatus(existing.timeIn, existing.timeOut) || record.status || existing.status || "";
-        existing.synced = existing.synced === true || record.synced === true;
+        existing.remark = existing.remark || record.remark || "";
+        existing.status = (record.status === "COMPLETED" || existing.status !== "COMPLETED")
+            ? (record.status || existing.status || calculateLocalStatus(existing.timeIn, existing.timeOut))
+            : existing.status;
+        existing.synced = existing.synced === true && record.synced === true;
         existing.sheetName = existing.sheetName || record.sheetName || "";
         existing.clearVersion = existing.clearVersion || record.clearVersion || "0";
     });
 
-    const changed = cleaned.length !== (attendanceRecords || []).length;
-    attendanceRecords = cleaned;
-    if (changed) saveRecords();
+    const normalized = Array.from(merged.values());
+    if (normalized.length !== attendanceRecords.length) changed = true;
+
+    if (changed) {
+        attendanceRecords = normalized;
+        saveRecords();
+    }
+
     return changed;
 }
 
@@ -1485,12 +1606,13 @@ async function loadServerRecordsForActiveSheet() {
         const result = await response.json();
         if (!result || result.success !== true || !Array.isArray(result.records)) return;
 
+        normalizeAttendanceRecords();
+
         const today = getToday();
         result.records.forEach(serverRecord => {
-            const serverStudentId = String(serverRecord.studentId || "").trim();
             let local = attendanceRecords.find(r =>
                 String(r.sheetId || "") === String(sheet.id) &&
-                String(r.studentId || "").trim().toUpperCase() === serverStudentId.toUpperCase() &&
+                String(r.studentId || "").trim().toUpperCase() === String(serverRecord.studentId || "").trim().toUpperCase() &&
                 r.date === today
             );
 
@@ -1511,15 +1633,15 @@ async function loadServerRecordsForActiveSheet() {
                 attendanceRecords.push(local);
             } else {
                 local.studentName = serverRecord.studentName || local.studentName;
-                local.timeIn = serverRecord.timeIn;
-                local.timeOut = serverRecord.timeOut;
+                local.timeIn = serverRecord.timeIn || local.timeIn;
+                local.timeOut = serverRecord.timeOut || local.timeOut;
                 local.status = serverRecord.status || calculateLocalStatus(local.timeIn, local.timeOut);
                 local.remark = local.timeOut && !local.timeIn ? "NO TIME IN" : local.remark;
                 local.synced = true;
             }
         });
 
-        dedupeAttendanceRecords();
+        normalizeAttendanceRecords();
         saveRecords();
         displayAttendance();
         if (typeof renderRecentAttendance === "function") renderRecentAttendance();
@@ -1970,20 +2092,41 @@ function playErrorSound() {
 ===================================================== */
 
 function getToday() {
-    // Always use Philippine Standard Time (Asia/Manila).
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit"
-    }).formatToParts(new Date());
 
-    const values = {};
-    parts.forEach(function(part) {
-        if (part.type !== "literal") values[part.type] = part.value;
-    });
+    const now =
+        new Date();
 
-    return values.year + "-" + values.month + "-" + values.day;
+
+    const year =
+        now.getFullYear();
+
+
+    const month =
+        String(
+            now.getMonth() + 1
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    const day =
+        String(
+            now.getDate()
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    return (
+        year +
+        "-" +
+        month +
+        "-" +
+        day
+    );
+
 }
 
 
@@ -1992,14 +2135,25 @@ function getToday() {
 ===================================================== */
 
 function getCurrentTime() {
-    // Attendance timestamps always use Philippine Standard Time.
-    return new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Manila",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-    }).format(new Date());
+
+    const now =
+        new Date();
+
+
+    return now.toLocaleTimeString(
+        [],
+        {
+            hour:
+                "2-digit",
+
+            minute:
+                "2-digit",
+
+            second:
+                "2-digit"
+        }
+    );
+
 }
 
 
@@ -2084,7 +2238,6 @@ window.addEventListener(
 
         setTimeout(async function() {
             await loadServerAttendanceSheets();
-            await loadServerRecordsForActiveSheet();
             await syncOfflineRecords();
         }, 1000);
     }
@@ -2160,7 +2313,6 @@ async function processStudent(studentId) {
     isProcessing = true;
 
     try {
-        dedupeAttendanceRecords();
         const activeSheet = getActiveSheet();
         const today = getToday();
         const currentTime = getCurrentTime();
@@ -2596,45 +2748,33 @@ async function syncOfflineRecords() {
    AUTOMATIC RETRY
 ===================================================== */
 
-const SYNC_RETRY_INTERVAL = 5000;
-let isRefreshingFromServer = false;
+const SYNC_RETRY_INTERVAL = 10000;
 
-/*
- * MULTI-DEVICE LIVE SYNC
- * Every online device periodically reads the active event sheet from
- * Google Sheets. This is what makes attendance scanned on Device A
- * appear on Device B without requiring a page reload.
- */
-async function refreshAttendanceFromServer() {
-    if (!navigator.onLine || isRefreshingFromServer) return;
+setInterval(
+    function() {
 
-    isRefreshingFromServer = true;
-    try {
-        // First refresh the list so temporary/local sheets receive their
-        // real Google Sheet ID before records are requested.
-        await loadServerAttendanceSheets();
+        if (!navigator.onLine) {
+            return;
+        }
 
-        // Then fetch the latest attendance rows for the active event.
-        await loadServerRecordsForActiveSheet();
+        // Poll the server for a global local-storage clear. This allows
+        // every device that is online to clear its own local records.
+        loadServerAttendanceSheets().then(() => {
+            const hasPending = attendanceRecords.some(
+                record => record.synced !== true
+            );
 
-        // Finally upload anything this device recorded while offline.
-        await syncOfflineRecords();
-    } catch (error) {
-        console.warn("Background attendance sync failed:", error);
-    } finally {
-        isRefreshingFromServer = false;
-    }
-}
+            if (hasPending) {
+                console.log("Automatic retry: pending records detected.");
+                syncOfflineRecords();
+            }
+        }).catch(error => {
+            console.warn("Background global-clear check failed:", error);
+        });
 
-setInterval(refreshAttendanceFromServer, SYNC_RETRY_INTERVAL);
-
-// Refresh immediately when the app becomes visible/focused again.
-document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") refreshAttendanceFromServer();
-});
-
-window.addEventListener("focus", refreshAttendanceFromServer);
-window.addEventListener("pageshow", refreshAttendanceFromServer);
+    },
+    SYNC_RETRY_INTERVAL
+);
 
 
 /* =====================================================
@@ -2960,31 +3100,13 @@ async function startQrScanner(userRequested = false) {
         await qrCameraScanner.start(
             cameraSource,
             {
-                // Faster QR recognition: scan more frames, use a larger
-                // detection area, and tell html5-qrcode to look only for QR.
-                /* QR ONLY — tuned for maximum detection sensitivity. */
-                fps: 20,
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    /* A larger scan region makes it easier to catch QR codes
-                       that are small, off-center, or entering the frame. */
-                    const size = Math.floor(
-                        Math.min(viewfinderWidth, viewfinderHeight) * 0.86
-                    );
-                    return { width: size, height: size };
+                fps: 10,
+                qrbox: {
+                    width: 200,
+                    height: 200
                 },
-                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true
-                },
-                videoConstraints: {
-                    facingMode: { ideal: "environment" },
-                    /* Request a sharper portrait stream so small QR modules
-                       contain more detail for the decoder. */
-                    width: { ideal: 1080 },
-                    height: { ideal: 1920 },
-                    frameRate: { ideal: 30, max: 60 }
-                },
-                disableFlip: true
+                aspectRatio: 1.7777778,
+                disableFlip: false
             },
             onScanSuccess,
             onScanFailure
@@ -3064,25 +3186,6 @@ window.addEventListener("load", function() {
 function saveRecords() {
 
     try {
-        // Keep one record per student + sheet + date.
-        // Do not call dedupeAttendanceRecords() here because it calls saveRecords()
-        // when it detects a change.
-        const unique = new Map();
-        (attendanceRecords || []).forEach(record => {
-            const key = attendanceRecordKey(record);
-            if (!key || !unique.has(key)) {
-                unique.set(key || ("__" + unique.size), record);
-            } else {
-                const existing = unique.get(key);
-                existing.studentName = existing.studentName || record.studentName || "";
-                existing.timeIn = existing.timeIn || record.timeIn || "";
-                existing.timeOut = existing.timeOut || record.timeOut || "";
-                existing.remark = record.remark || existing.remark || "";
-                existing.status = calculateLocalStatus(existing.timeIn, existing.timeOut) || record.status || existing.status || "";
-                existing.synced = existing.synced === true || record.synced === true;
-            }
-        });
-        attendanceRecords = Array.from(unique.values());
 
         localStorage.setItem(
             "attendanceRecords",
@@ -3394,74 +3497,34 @@ function exportCSV() {
 
 
 /* =====================================================
-   CLEAR ALL RECORDS — LOCAL DEVICE ONLY
+   CLEAR ALL RECORDS
+   All clear actions use the same global operation.
 ===================================================== */
 
 function clearLocalAttendance() {
-    clearLocalStorageOnly();
-}
-
-function clearLocalStorageOnly() {
-    const confirmation = confirm(
-        "CLEAR LOCAL RECORDS?\n\n" +
-        "This will clear attendance records stored on THIS DEVICE ONLY.\n\n" +
-        "Google Sheets will NOT be changed. Other devices will NOT be affected.\n\n" +
-        "Continue?"
-    );
-    if (!confirmation) return;
-
-    try {
-        // Attendance records only. Keep attendance sheet configuration,
-        // app settings, and masterlist-related local data intact.
-        const keysToRemove = [
-            "attendanceRecords",
-            "attendance_records",
-            "psabe_attendance_records"
-        ];
-
-        [...new Set(keysToRemove)].forEach(function(key) {
-            localStorage.removeItem(key);
-        });
-
-        attendanceRecords = [];
-        if (typeof saveRecords === "function") saveRecords();
-        if (typeof displayAttendance === "function") displayAttendance();
-        if (typeof renderRecentAttendance === "function") renderRecentAttendance();
-        if (typeof updateScreenshotStats === "function") updateScreenshotStats();
-
-        showMessage(
-            "Local attendance records cleared. Google Sheets was not changed.",
-            "success"
-        );
-
-        const settingsMenu = document.getElementById("settingsMenu");
-        if (settingsMenu) settingsMenu.classList.remove("open");
-    } catch (error) {
-        console.error("Local clear failed:", error);
-        showMessage("Unable to clear local records: " + error.message, "error");
-    }
+    clearAllSheetsGlobally();
 }
 
 
 /* =====================================================
    CLEAR ALL SHEETS — GLOBAL ATTENDANCE RESET
-   Clears Google Sheets attendance data and synchronizes the clear
-   to other devices through the server clearVersion.
+   Clears attendance data in Google Sheets and this device. Other
+   devices clear their local caches when they receive the new
+   server clearVersion. Stale offline records cannot be uploaded
+   again after a global clear.
 ===================================================== */
 
 async function clearAllSheetsGlobally() {
     if (!navigator.onLine) {
-        showMessage(
-            "Internet connection is required to clear all sheets across devices.",
-            "error"
-        );
+        showMessage("Internet connection is required to clear all sheets across devices.", "error");
         return;
     }
 
     const confirmation = confirm(
         "CLEAR ALL SHEETS?\n\n" +
-        "This will clear ALL attendance records from Google Sheets and from the local cache on every app device.\n\n" +
-        "Event sheet tabs, event names, student names, and student ID numbers will be preserved.\n\n" +
+        "This will clear ALL attendance records from the attendance event sheets and from the app's local cache on every device.\n\n" +
+        "Event sheet tabs, event names, student names, and student ID numbers will be preserved.\n" +
+        "Devices that are offline will clear their local records when they reconnect.\n\n" +
         "Continue?"
     );
     if (!confirmation) return;
@@ -3473,25 +3536,20 @@ async function clearAllSheetsGlobally() {
     }
 
     try {
-        const result = await postToAppsScript({
-            action: "CLEAR_ALL_SHEETS"
-        });
+        const result = await postToAppsScript({ action: "CLEAR_ALL_SHEETS" });
 
         if (!result || result.success !== true) {
-            throw new Error(
-                (result && result.message) ||
-                "Unable to clear attendance sheets."
-            );
+            throw new Error((result && result.message) || "Unable to clear attendance sheets.");
         }
 
-        // Store the server clear version before clearing this device's records.
+        // Save the new server version BEFORE clearing local data. This
+        // prevents any stale offline record from being uploaded later.
         if (result.clearVersion) {
-            localStorage.setItem(
-                "psabe_global_clear_version",
-                String(result.clearVersion)
-            );
+            localStorage.setItem("psabe_global_clear_version", String(result.clearVersion));
         }
 
+        // Clear every locally cached attendance record so this device
+        // immediately matches the server after the global clear.
         attendanceRecords = [];
         saveRecords();
         if (typeof displayAttendance === "function") displayAttendance();
@@ -3502,7 +3560,6 @@ async function clearAllSheetsGlobally() {
             "All attendance records were cleared. Event sheets and masterlists were preserved.",
             "success"
         );
-
         const settingsMenu = document.getElementById("settingsMenu");
         if (settingsMenu) settingsMenu.classList.remove("open");
     } catch (error) {
@@ -3515,6 +3572,7 @@ async function clearAllSheetsGlobally() {
         }
     }
 }
+
 
 /* =====================================================
    INITIALIZE
@@ -3538,40 +3596,12 @@ if (navigator.onLine) {
             // Check the global clear version before attempting to resend
             // any offline records, so cleared records cannot be uploaded again.
             await loadServerAttendanceSheets();
-            await loadServerRecordsForActiveSheet();
             await syncOfflineRecords();
         },
         300
     );
 }
 
-
-/* =====================================================
-   OFFLINE APP BOOTSTRAP
-   - Registers the service worker as early as possible.
-   - The service worker caches the complete app shell, including the local
-     QR library, so an already-visited GitHub Pages app can reopen offline.
-===================================================== */
-(function ensureOfflineAppReady() {
-  if (!("serviceWorker" in navigator)) return;
-
-  function registerOfflineWorker() {
-    navigator.serviceWorker.register("./service-worker.js?v=7", { scope: "./" })
-      .then(function(registration) {
-        console.log("Offline service worker registered:", registration.scope);
-        if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
-      })
-      .catch(function(error) {
-        console.warn("Offline service worker registration failed:", error);
-      });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", registerOfflineWorker, { once: true });
-  } else {
-    registerOfflineWorker();
-  }
-})();
 
 /* =====================================================
    SERVICE WORKER REGISTRATION
@@ -3588,7 +3618,7 @@ if (
 
             navigator.serviceWorker
                 .register(
-                    "./service-worker.js?v=7"
+                    "./service-worker.js"
                 )
                 .then(
                     function(registration) {
@@ -3617,6 +3647,69 @@ if (
 }
 
 
+
+/* UI ENHANCEMENTS */
+/* =====================================================
+   LIVE PHILIPPINE CLOCK
+   - Always formats using Asia/Manila (UTC+8 / Philippine Standard Time).
+   - Updates every second.
+   - Re-syncs immediately when the page becomes visible again.
+   - Uses a timeout aligned to the next second so it does not slowly drift.
+===================================================== */
+(function startLivePhilippineClock() {
+  const TIME_ZONE = "Asia/Manila";
+  let timer = null;
+
+  const clockFormatter = new Intl.DateTimeFormat("en-PH", {
+    timeZone: TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+
+  const dateFormatter = new Intl.DateTimeFormat("en-PH", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  function updateLiveClock() {
+    const clock = document.getElementById("liveClock");
+    const dateEl = document.getElementById("currentDate");
+
+    if (!clock) {
+      timer = setTimeout(updateLiveClock, 250);
+      return;
+    }
+
+    try {
+      const now = new Date();
+      clock.textContent = clockFormatter.format(now);
+      if (dateEl) dateEl.textContent = dateFormatter.format(now);
+    } catch (error) {
+      console.error("Live Philippine clock error:", error);
+    }
+
+    // Align the next update close to the next real second boundary.
+    const delay = 1000 - (Date.now() % 1000) + 10;
+    timer = setTimeout(updateLiveClock, delay);
+  }
+
+  function restartClock() {
+    if (timer) clearTimeout(timer);
+    updateLiveClock();
+  }
+
+  // Start as soon as the script is reached, and restart after page resume.
+  restartClock();
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) restartClock();
+  });
+  window.addEventListener("focus", restartClock);
+  window.addEventListener("pageshow", restartClock);
+})();
 
 function updatePendingCount() {
   const el = document.getElementById("pendingCount");
@@ -3812,6 +3905,7 @@ function closeAttendanceRecords(event) {
 }
 
 function renderAttendanceSheets() {
+    normalizeAttendanceRecords();
     const list = document.getElementById("sheetList");
     if (!list) return;
 
@@ -3823,9 +3917,13 @@ function renderAttendanceSheets() {
     }
 
     attendanceSheets.forEach(sheet => {
-        const count = attendanceRecords.filter(
-            r => (r.sheetId || attendanceSheets[0].id) === sheet.id
-        ).length;
+        const uniqueAttendees = new Set(
+            attendanceRecords
+                .filter(r => (r.sheetId || attendanceSheets[0].id) === sheet.id)
+                .map(r => String(r.studentId || "").trim().toUpperCase())
+                .filter(Boolean)
+        );
+        const count = uniqueAttendees.size;
 
         const row = document.createElement("div");
         row.className = "sheet-row";
@@ -3976,7 +4074,6 @@ updateActiveSheetUI();
 </script>
 <script>
 /* Visual-layer additions for the screenshot layout. */
-  /* Attendance list is scrollable; print layout will be added after the requested format is supplied. */
 (function(){
   function renderRecentAttendance(){
     const el=document.getElementById("recentList");
@@ -3986,7 +4083,7 @@ updateActiveSheetUI();
     const records=(attendanceRecords||[]).filter(r=>
       (!today || r.date===today) &&
       (r.sheetId || attendanceSheets[0].id)===activeId
-    ).reverse();
+    ).slice(-8).reverse();
 
     if(!records.length){
       el.innerHTML='<div style="padding:24px;text-align:center;color:#6d7772;font-size:13px">No attendance records yet.</div>';
@@ -4087,50 +4184,185 @@ window.addEventListener("load", function(){
 </script>
 
 
-<script>
-/* Standalone live Philippine clock. */
+<script id="pwaInstallManager">
 (function () {
-  var timeFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
+  let deferredInstallPrompt = null;
+  const PROMPT_DISMISSED_KEY = "psabe_install_prompt_dismissed";
+
+  function isStandalone() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function showInstallPrompt() {
+    if (isStandalone() || !deferredInstallPrompt) return;
+    const prompt = document.getElementById("pwaInstallPrompt");
+    if (prompt) prompt.classList.add("show");
+  }
+
+  function hideInstallPrompt() {
+    const prompt = document.getElementById("pwaInstallPrompt");
+    if (prompt) prompt.classList.remove("show");
+  }
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    // Show the install popup automatically when the browser says the app is installable.
+    setTimeout(showInstallPrompt, 900);
   });
 
-  var dateFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null;
+    hideInstallPrompt();
+    localStorage.setItem("psabe_app_installed", "1");
   });
 
-  function updatePhilippineClock() {
-    var clock = document.getElementById("liveClock");
-    var dateEl = document.getElementById("currentDate");
-    if (!clock) return;
+  document.addEventListener("click", async function (event) {
+    const installButton = event.target.closest("#pwaInstallNow");
+    const laterButton = event.target.closest("#pwaInstallLater");
 
-    var now = new Date();
-    clock.textContent = timeFormatter.format(now);
-    if (dateEl) dateEl.textContent = dateFormatter.format(now);
+    if (laterButton) {
+      hideInstallPrompt();
+      return;
+    }
+
+    if (!installButton) return;
+    if (!deferredInstallPrompt) {
+      hideInstallPrompt();
+      return;
+    }
+
+    deferredInstallPrompt.prompt();
+    try {
+      const choice = await deferredInstallPrompt.userChoice;
+      console.log("PWA install choice:", choice.outcome);
+    } catch (error) {
+      console.warn("PWA install prompt error:", error);
+    }
+    deferredInstallPrompt = null;
+    hideInstallPrompt();
+  });
+
+  // iOS/Safari cannot use beforeinstallprompt. Keep the app installable through
+  // Safari's Share -> Add to Home Screen flow, but do not show a misleading button.
+  window.addEventListener("load", function () {
+    if (isStandalone()) hideInstallPrompt();
+  });
+})();
+</script>
+
+<script>
+/* =====================================================
+   VIEW ALL ATTENDEES
+   Shows all attendees from the CURRENT active attendance
+   sheet for the same date shown in Recent Attendance.
+===================================================== */
+(function(){
+  function getViewAllRecords(){
+    const today=(typeof getToday==="function") ? getToday() : "";
+    const activeId=window.activeSheetId || activeSheetId;
+    const seen=new Map();
+
+    (attendanceRecords || []).forEach(record=>{
+      const recordSheetId=record.sheetId || (attendanceSheets && attendanceSheets[0] ? attendanceSheets[0].id : "");
+      if((!today || record.date===today) && recordSheetId===activeId){
+        const key=[
+          String(record.studentId || "").trim().toUpperCase(),
+          String(record.date || ""),
+          String(recordSheetId || "")
+        ].join("|");
+
+        const existing=seen.get(key);
+        if(!existing){
+          seen.set(key,record);
+        }else{
+          /* Keep one record and merge its Time In/Time Out/status. */
+          seen.set(key,{
+            ...existing,
+            ...record,
+            studentName:record.studentName || existing.studentName,
+            timeIn:record.timeIn || existing.timeIn,
+            timeOut:record.timeOut || existing.timeOut,
+            status:record.status || existing.status
+          });
+        }
+      }
+    });
+
+    return Array.from(seen.values()).sort((a,b)=>{
+      const ta=String(a.timeIn || a.timeOut || "");
+      const tb=String(b.timeIn || b.timeOut || "");
+      return ta.localeCompare(tb);
+    });
   }
 
-  function startPhilippineClock() {
-    updatePhilippineClock();
-    if (window.__psabePhilippineClock) clearInterval(window.__psabePhilippineClock);
-    window.__psabePhilippineClock = setInterval(updatePhilippineClock, 1000);
-  }
+  window.openAllRecentAttendance=function(){
+    const modal=document.getElementById("allAttendeesModal");
+    const list=document.getElementById("allAttendeesList");
+    const subtitle=document.getElementById("allAttendeesSubtitle");
+    if(!modal || !list) return;
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startPhilippineClock, { once: true });
-  } else {
-    startPhilippineClock();
-  }
+    const records=getViewAllRecords();
+    const sheet=(typeof getActiveSheet==="function") ? getActiveSheet() : null;
+    const today=(typeof getToday==="function") ? getToday() : "";
 
-  window.addEventListener("pageshow", startPhilippineClock);
-  window.addEventListener("focus", startPhilippineClock);
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) startPhilippineClock();
+    if(subtitle){
+      subtitle.textContent=(sheet ? sheet.name : "Current Attendance") +
+        (today ? " • " + today : "") +
+        " • " + records.length + " attendee" + (records.length===1 ? "" : "s");
+    }
+
+    if(!records.length){
+      list.innerHTML='<div class="all-attendees-empty">No attendees found for the current attendance sheet.</div>';
+    }else{
+      list.innerHTML=records.map((r,index)=>{
+        const status=String(
+          r.status ||
+          (typeof calculateLocalStatus==="function"
+            ? calculateLocalStatus(r.timeIn,r.timeOut)
+            : "PRESENT") ||
+          "PRESENT"
+        ).toUpperCase();
+
+        const cls=status==="COMPLETED" ? "completed" :
+                  status==="INCOMPLETE" ? "incomplete" : "present";
+
+        const label=status==="INCOMPLETE" ? "INCOMPLETE/LATE" : status;
+
+        return `<div class="all-attendee-row">
+          <span class="all-attendee-no">${index+1}</span>
+          <span class="all-attendee-name">${escapeHTML(r.studentName || "Name unavailable")}</span>
+          <span class="all-attendee-id">${escapeHTML(r.studentId || "—")}</span>
+          <span class="all-attendee-status"><span class="badge ${cls}">${label}</span></span>
+        </div>`;
+      }).join("");
+    }
+
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden","false");
+    document.body.classList.add("all-attendees-open");
+  };
+
+  window.closeAllRecentAttendance=function(){
+    const modal=document.getElementById("allAttendeesModal");
+    if(modal){
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden","true");
+    }
+    document.body.classList.remove("all-attendees-open");
+  };
+
+  document.addEventListener("click",function(event){
+    const modal=document.getElementById("allAttendeesModal");
+    if(modal && event.target===modal){
+      window.closeAllRecentAttendance();
+    }
+  });
+
+  document.addEventListener("keydown",function(event){
+    if(event.key==="Escape"){
+      window.closeAllRecentAttendance();
+    }
   });
 })();
 </script>
