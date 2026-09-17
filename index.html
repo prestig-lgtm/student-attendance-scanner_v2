@@ -466,21 +466,58 @@ button{cursor:pointer}
   display:none;
 }
 .scanner-window.qr-detected:before{display:block}
-.scan-frame{width:215px;height:190px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:4px solid #19ed67;border-radius:12px;z-index:3;pointer-events:none;display:none}.scan-frame.detected{display:block}
-.scan-frame:before,.scan-frame:after{
-  content:"";position:absolute;inset:-4px;border-radius:12px;
-  border-top:0;border-bottom:0;
+/* =====================================================
+   QR FOUR-CORNER ALIGNMENT
+   RED = WAITING FOR QR
+   GREEN = QR DETECTED
+   NO CENTER SCANNING LINE
+===================================================== */
+.scan-frame{
+  width:82%;
+  aspect-ratio:1 / 1;
+  height:auto;
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  border:0 !important;
+  border-radius:12px;
+  background:transparent !important;
+  z-index:3;
+  pointer-events:none;
+  display:block !important;
 }
-.scan-line{position:absolute;left:0;right:0;top:50%;height:4px;background:#11e95d;box-shadow:0 0 10px #11e95d}
+.scan-frame:before,.scan-frame:after{
+  display:none !important;
+  content:none !important;
+}
+.scan-line{
+  display:none !important;
+}
 .fake-qr{
   width:174px;height:174px;background:
   repeating-linear-gradient(0deg,#111 0 6px,#fff 6px 12px),
   repeating-linear-gradient(90deg,transparent 0 5px,#000 5px 9px);
   mix-blend-mode:screen;opacity:.95;border:13px solid white;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)
 }
-.scan-corner{position:absolute;width:35px;height:35px;border-color:#19ed67;border-style:solid;z-index:3}
-.c1{left:-6px;top:-6px;border-width:5px 0 0 5px}.c2{right:-6px;top:-6px;border-width:5px 5px 0 0}
-.c3{left:-6px;bottom:-6px;border-width:0 0 5px 5px}.c4{right:-6px;bottom:-6px;border-width:0 5px 5px 0}
+.scan-corner{
+  position:absolute;
+  width:38px;
+  height:38px;
+  border-style:solid;
+  border-color:#ff2d2d;
+  z-index:4;
+  transition:border-color .15s ease,filter .15s ease,transform .15s ease;
+}
+.c1{left:0;top:0;border-width:6px 0 0 6px}
+.c2{right:0;top:0;border-width:6px 6px 0 0}
+.c3{left:0;bottom:0;border-width:0 0 6px 6px}
+.c4{right:0;bottom:0;border-width:0 6px 6px 0}
+.scan-frame.detected .scan-corner{
+  border-color:#19ed67;
+  filter:drop-shadow(0 0 5px rgba(25,237,103,.95)) drop-shadow(0 0 12px rgba(25,237,103,.6));
+  transform:scale(1.06);
+}
 .scanner-status{text-align:center;font-size:15px;color:#4d5a54;padding:0 10px 9px}
 .scanner-status b{color:#16a84f}
 .manual-section{border-top:1px solid #dce3df;padding:13px 26px;position:relative;z-index:20;pointer-events:auto;background:#fff}
@@ -1342,8 +1379,10 @@ body.all-attendees-open{overflow:hidden}
     <div class="scanner-window">
       <div id="reader"></div>
       <div class="scan-frame">
-        <div class="scan-line"></div>
-        <i class="scan-corner c1"></i><i class="scan-corner c2"></i><i class="scan-corner c3"></i><i class="scan-corner c4"></i>
+        <i class="scan-corner c1"></i>
+        <i class="scan-corner c2"></i>
+        <i class="scan-corner c3"></i>
+        <i class="scan-corner c4"></i>
       </div>
     </div>
     <div class="scanner-status">
@@ -3278,17 +3317,66 @@ async function startQrScanner(userRequested = false) {
                         ? track.getCapabilities()
                         : {};
 
+                if (typeof track.applyConstraints !== "function") return;
+
+                const advanced = [];
+
+                /* Continuous autofocus improves recognition at different distances. */
                 if (
                     capabilities.focusMode &&
-                    capabilities.focusMode.includes("continuous") &&
-                    typeof track.applyConstraints === "function"
+                    Array.isArray(capabilities.focusMode) &&
+                    capabilities.focusMode.includes("continuous")
                 ) {
+                    advanced.push({ focusMode: "continuous" });
+                }
+
+                /* Continuous exposure helps in changing and low-light conditions. */
+                if (
+                    capabilities.exposureMode &&
+                    Array.isArray(capabilities.exposureMode) &&
+                    capabilities.exposureMode.includes("continuous")
+                ) {
+                    advanced.push({ exposureMode: "continuous" });
+                }
+
+                /* Turn on the rear-camera torch when the device supports it. */
+                if (capabilities.torch === true) {
+                    advanced.push({ torch: true });
+                    console.log("QR scanner torch enabled.");
+                }
+
+                if (advanced.length) {
                     await track.applyConstraints({
-                        advanced: [{ focusMode: "continuous" }]
+                        advanced: advanced
+                    }).catch((cameraError) => {
+                        console.warn("Some camera enhancements were unavailable:", cameraError);
+                    });
+                }
+
+                /* Use a small amount of optical/digital zoom when supported. */
+                if (
+                    capabilities.zoom &&
+                    typeof capabilities.zoom.min === "number" &&
+                    typeof capabilities.zoom.max === "number" &&
+                    capabilities.zoom.max > capabilities.zoom.min
+                ) {
+                    const preferredZoom = Math.min(
+                        Math.max(capabilities.zoom.min, 1.0),
+                        capabilities.zoom.max
+                    );
+
+                    await track.applyConstraints({
+                        advanced: [{ zoom: preferredZoom }]
                     }).catch(() => {});
                 }
-            } catch (focusError) {
-                console.warn("Continuous autofocus is not available:", focusError);
+
+                console.log("QR camera optimization applied.");
+
+            } catch (cameraOptimizationError) {
+                console.warn(
+                    "Camera optimization is not available:",
+                    cameraOptimizationError
+                );
             }
         }, 500);
 
