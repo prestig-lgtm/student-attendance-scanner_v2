@@ -965,6 +965,24 @@ button{cursor:pointer}
   }
 }
 </style>
+<style id="desktopCompatibility">
+/*
+ * Desktop compatibility only.
+ * No visual redesign: the existing interface dimensions and breakpoints
+ * remain unchanged. This simply prevents the page from behaving like a
+ * phone-only camera view on desktop browsers.
+ */
+@media (min-width: 801px) {
+  .scanner-window {
+    /* Preserve the existing proportions while allowing desktop webcams. */
+    max-width: 360px;
+  }
+
+  #reader video {
+    object-fit: cover !important;
+  }
+}
+</style>
 <style>
 /* STUDENT NAME PREVIEW + RECENT ATTENDANCE COLUMNS */
 .student-preview{
@@ -3190,64 +3208,78 @@ async function startQrScanner(userRequested = false) {
         qrCameraScanner = new Html5Qrcode("reader");
 
         /*
-         * IMPORTANT:
-         * Request the environment-facing camera directly.
-         * We do NOT use cameras[0], because camera index 0 can be
-         * the selfie/front camera on some mobile browsers.
+         * Desktop compatibility:
+         * Mobile devices can prefer the environment/rear camera, but many
+         * desktops only expose a normal webcam. Using "exact: environment"
+         * makes those desktop webcams fail before the scanner can start.
+         *
+         * We therefore request the environment camera as an IDEAL preference
+         * and fall back to the browser's default webcam if needed.
          */
-        const cameraSource = {
-            facingMode: {
-                exact: "environment"
-            }
+        const scanConfig = {
+            /*
+             * Full-frame detection. No qrbox is used so the decoder
+             * can inspect the complete camera frame.
+             */
+            fps: 15,
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            videoConstraints: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                frameRate: { ideal: 30, max: 60 }
+            },
+            /* Do not mirror the camera by default. */
+            disableFlip: false
         };
 
-        /* Start the REAL rear-camera video stream. */
-        await qrCameraScanner.start(
-            cameraSource,
-            {
-                /*
-                 * Full-frame detection. No qrbox is used so the decoder
-                 * can inspect the complete camera frame.
-                 */
-                fps: 15,
-                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        /* Try the preferred environment camera first. */
+        try {
+            await qrCameraScanner.start(
+                { facingMode: { ideal: "environment" } },
+                scanConfig,
+                onScanSuccess,
+                onScanFailure
+            );
+        } catch (firstCameraError) {
+            /*
+             * Desktop fallback: use the browser's default available webcam.
+             * This is especially important for Windows/macOS laptops and
+             * USB webcams, which normally do not report an "environment"
+             * facing mode.
+             */
+            console.warn("Environment camera unavailable; trying default webcam.", firstCameraError);
 
-                /*
-                 * Request a high-quality stream while explicitly requiring
-                 * the rear/environment camera.
-                 */
-                videoConstraints: {
-                    facingMode: {
-                        exact: "environment"
-                    },
-                    width: {
-                        ideal: 1920,
-                        min: 1280
-                    },
-                    height: {
-                        ideal: 1080,
-                        min: 720
-                    },
-                    frameRate: {
-                        ideal: 30,
-                        max: 60
+            await qrCameraScanner.start(
+                { facingMode: "user" },
+                {
+                    ...scanConfig,
+                    videoConstraints: {
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30, max: 60 }
                     }
                 },
-
-                /* Do not mirror the rear camera. */
-                disableFlip: false
-            },
-            onScanSuccess,
-            onScanFailure
-        );
+                onScanSuccess,
+                onScanFailure
+            );
+        }
 
         /*
-         * Ask supported browsers to keep the device display portrait.
-         * This affects the screen orientation, not which physical camera
-         * is selected.
+         * Locking the screen to portrait is useful on phones, but it is not
+         * appropriate for desktop browsers. Only attempt it on coarse-pointer
+         * devices.
          */
         try {
-            if (screen.orientation && typeof screen.orientation.lock === "function") {
+            const isTouchDevice =
+                window.matchMedia &&
+                window.matchMedia("(pointer: coarse)").matches;
+
+            if (
+                isTouchDevice &&
+                screen.orientation &&
+                typeof screen.orientation.lock === "function"
+            ) {
                 await screen.orientation.lock("portrait").catch(() => {});
             }
         } catch (_) {}
