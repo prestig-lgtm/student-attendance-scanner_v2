@@ -924,25 +924,25 @@ button{cursor:pointer}
 .student-preview-name{font-size:14px;font-weight:900;color:#12382a}
 .student-preview-id{font-size:11px;color:#68756f;margin-top:3px}
 .recent-columns{
-  display:grid;grid-template-columns:1.35fr 1fr 150px;gap:12px;align-items:center;
+  display:grid;grid-template-columns:1.35fr 1fr 1fr 150px;gap:12px;align-items:center;
   padding:8px 20px 7px;border-bottom:1px solid #e0e5e2;
   font-size:9px;font-weight:900;color:#78847e;letter-spacing:.4px;
 }
 .recent-list{padding:0 20px 7px}
 .recent-row{
-  min-height:46px;display:grid;grid-template-columns:1.35fr 1fr 150px;gap:12px;
+  min-height:46px;display:grid;grid-template-columns:1.35fr 1fr 1fr 150px;gap:12px;
   align-items:center;border-bottom:1px solid #e0e5e2;font-size:12px;
 }
 .recent-row .person-icon{display:none}
 .recent-row .person-name{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.recent-row .student-id-cell{font-size:12px;color:#46544e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent-row .student-id-cell,.recent-row .year-level-cell{font-size:12px;color:#46544e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recent-row .status-cell{justify-self:start}
 .badge{justify-self:start}
 @media(max-width:560px){
-  .recent-columns{grid-template-columns:1.35fr 1fr 92px;gap:7px;padding:7px 10px;font-size:8px}
+  .recent-columns{grid-template-columns:1.35fr 1fr 1fr 92px;gap:7px;padding:7px 10px;font-size:8px}
   .recent-list{padding-left:10px;padding-right:10px}
-  .recent-row{grid-template-columns:1.35fr 1fr 92px;gap:7px;min-height:44px;font-size:10px}
-  .recent-row .student-id-cell{font-size:10px}
+  .recent-row{grid-template-columns:1.35fr 1fr 1fr 92px;gap:7px;min-height:44px;font-size:10px}
+  .recent-row .student-id-cell,.recent-row .year-level-cell{font-size:10px}
   .badge{padding:5px 7px;font-size:9px}
 }
 </style>
@@ -1051,7 +1051,7 @@ button{cursor:pointer}
 .all-attendees-columns,
 .all-attendee-row{
   display:grid;
-  grid-template-columns:58px 1.5fr 1fr 150px;
+  grid-template-columns:58px 1.35fr .9fr .8fr 150px;
   gap:12px;
   align-items:center;
 }
@@ -1092,7 +1092,7 @@ button{cursor:pointer}
 .all-attendee-id{
   color:#52625a;
 }
-.all-attendee-status{
+.all-attendee-year{color:#52625a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.all-attendee-status{
   justify-self:start;
 }
 .all-attendees-empty{
@@ -1108,7 +1108,7 @@ body.all-attendees-open{overflow:hidden}
   .all-attendees-head h2{font-size:19px}
   .all-attendees-columns,
   .all-attendee-row{
-    grid-template-columns:32px 1.25fr .9fr 92px;
+    grid-template-columns:32px 1.25fr .9fr .8fr 92px;
     gap:7px;
   }
   .all-attendees-columns{
@@ -1200,6 +1200,32 @@ small:not(.stat-value):not(.badge){
 .person-id,.student-id-cell,.all-attendee-id,.records-modal td:nth-child(2){
   color:#ffffff !important;
   font-weight:500 !important;
+}
+
+/* Exact column alignment for Recent Attendance.
+   The records list has an 8px scrollbar. The heading row does not, so
+   give the heading row the same effective content width as the list. */
+.recent-columns{
+  margin-right:28px !important;
+  padding-right:20px !important;
+  grid-template-columns:1.35fr 1fr 1fr 150px !important;
+  gap:12px !important;
+}
+.recent-row{
+  grid-template-columns:1.35fr 1fr 1fr 150px !important;
+  gap:12px !important;
+}
+@media(max-width:560px){
+  .recent-columns{
+    margin-right:17px !important;
+    padding-right:10px !important;
+    grid-template-columns:1.35fr 1fr 1fr 92px !important;
+    gap:7px !important;
+  }
+  .recent-row{
+    grid-template-columns:1.35fr 1fr 1fr 92px !important;
+    gap:7px !important;
+  }
 }
 </style>
 
@@ -1405,7 +1431,7 @@ small:not(.stat-value):not(.badge){
 
   <section class="card recent">
     <div class="recent-head"><span>☷ &nbsp; RECENT ATTENDANCE</span><button onclick="openAllRecentAttendance()">VIEW ALL</button></div>
-    <div class="recent-columns"><span>NAME</span><span>ID NUMBER</span><span>ATTENDANCE STATUS</span></div>
+    <div class="recent-columns"><span>NAME</span><span>ID NUMBER</span><span>YEAR LEVEL</span><span>ATTENDANCE STATUS</span></div>
     <div id="recentList" class="recent-list"></div>
   </section>
 
@@ -1443,6 +1469,7 @@ small:not(.stat-value):not(.badge){
       <span>NO.</span>
       <span>NAME</span>
       <span>ID NUMBER</span>
+      <span>YEAR LEVEL</span>
       <span>ATTENDANCE STATUS</span>
     </div>
 
@@ -1605,6 +1632,53 @@ async function postToAppsScript(payload) {
 
     if (!response.ok) throw new Error("HTTP " + response.status);
     return await response.json();
+}
+
+const studentYearLevelCache = (() => {
+    try {
+        const raw = localStorage.getItem("psabe_student_year_levels");
+        return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+        return {};
+    }
+})();
+
+function saveStudentYearLevelCache() {
+    try {
+        localStorage.setItem("psabe_student_year_levels", JSON.stringify(studentYearLevelCache));
+    } catch (_) {}
+}
+
+function getRecordYearLevel(record) {
+    const id = String(record?.studentId || "").trim().toUpperCase();
+    return String(record?.yearLevel || (id && studentYearLevelCache[id]) || "").trim();
+}
+
+function displayYearLevel(value) {
+    const text = String(value || "").trim();
+    if (/^First Years$/i.test(text)) return "1ST YEAR";
+    if (/^Second Years$/i.test(text)) return "2ND YEAR";
+    if (/^Third Years$/i.test(text)) return "3RD YEAR";
+    if (/^Fourth Years$/i.test(text)) return "4TH YEAR";
+    return text || "—";
+}
+
+async function enrichRecordYearLevel(record) {
+    if (!record) return "";
+    const existing = getRecordYearLevel(record);
+    if (existing) return existing;
+    const id = String(record.studentId || "").trim().toUpperCase();
+    if (!id || !navigator.onLine) return "";
+    try {
+        const result = await lookupStudentFromServer(id);
+        if (result && result.success === true && result.yearLevel) {
+            record.yearLevel = result.yearLevel;
+            studentYearLevelCache[id] = result.yearLevel;
+            saveStudentYearLevelCache();
+            return result.yearLevel;
+        }
+    } catch (_) {}
+    return "";
 }
 
 async function lookupStudentFromServer(studentId) {
@@ -2523,6 +2597,7 @@ async function processStudent(studentId) {
                     studentId: studentId,
                     clearVersion: localStorage.getItem("psabe_global_clear_version") || "0",
                     studentName: studentName || "",
+                    yearLevel: "",
                     sheetId: activeSheet.id,
                     sheetName: activeSheet.name,
                     date: today,
@@ -2547,6 +2622,7 @@ async function processStudent(studentId) {
                     record = {
                         studentId: studentId,
                         studentName: studentName || "",
+                        yearLevel: "",
                         sheetId: activeSheet.id,
                         sheetName: activeSheet.name,
                         date: today,
@@ -2633,6 +2709,13 @@ async function processStudent(studentId) {
         lookupTask.then(serverStudent => {
             if (serverStudent && serverStudent.success === true) {
                 const serverName = serverStudent.studentName || "";
+                const serverYearLevel = serverStudent.yearLevel || "";
+                if (serverYearLevel) {
+                    record.yearLevel = serverYearLevel;
+                    const cacheId = String(studentId || "").trim().toUpperCase();
+                    if (cacheId) studentYearLevelCache[cacheId] = serverYearLevel;
+                    saveStudentYearLevelCache();
+                }
                 if (serverName) {
                     record.studentName = serverName;
                     saveRecords();
@@ -2766,6 +2849,14 @@ async function syncSingleRecord(record) {
             }
 
             record.studentName = result.studentName || record.studentName;
+            record.yearLevel = result.yearLevel || record.yearLevel || "";
+            if (record.yearLevel) {
+                const cacheId = String(record.studentId || "").trim().toUpperCase();
+                if (cacheId) {
+                    studentYearLevelCache[cacheId] = record.yearLevel;
+                    saveStudentYearLevelCache();
+                }
+            }
             record.synced = true;
             record.status = result.status || record.status;
             saveRecords();
@@ -3891,22 +3982,34 @@ function formatWordDate(value) {
 
 async function exportWordDocument() {
     try {
-        const records = getWordExportRecords();
-
-        if (records.length === 0) {
-            playErrorSound();
-            showMessage("There are no local attendance records to export.", "error");
-            return;
-        }
-
-        const loaded = await ensureDocxLibrary();
-
+        /*
+         * REAL DOCX EXPORT
+         *
+         * The CSU/PSABE-PPG reference image is placed in the
+         * `headers.default` section of the DOCX using the docx library.
+         * It is NOT inserted into the document body.
+         *
+         * In Microsoft Word, double-clicking the image area will therefore
+         * open the actual Header & Footer editing area and show
+         * "Close Header and Footer". The same header repeats on every page.
+         */
+        const loaded = await loadDocxLibrary();
         if (!loaded || !window.docx) {
-            console.warn("DOCX library unavailable. Using the offline Word-compatible exporter.");
-            exportWordCompatibleDocument();
-            return;
+            throw new Error("The DOCX generator could not be loaded.");
         }
 
+        const records = getWordExportRecords();
+        const sheet = getActiveSheet();
+        const eventName = sheet?.name || "ATTENDANCE";
+        const eventTitle = formatWordEventTitle(eventName);
+        const yearLevel = formatWordYearLevel(eventName);
+        const dateText = formatWordDate(new Date());
+
+        if (navigator.onLine) {
+            await Promise.all(records.map(record => enrichRecordYearLevel(record)));
+        }
+
+        const headerBytes = dataUriToUint8Array(PSABE_ATTENDANCE_HEADER_DATA_URI);
         const {
             Document,
             Packer,
@@ -3917,256 +4020,190 @@ async function exportWordDocument() {
             Table,
             TableRow,
             TableCell,
-            AlignmentType,
             WidthType,
-            BorderStyle,
+            AlignmentType,
+            VerticalAlign,
             ShadingType,
-            VerticalAlign
+            BorderStyle,
+            PageOrientation,
+            convertInchesToTwip
         } = window.docx;
 
-        const sheet = getActiveSheet();
-        const eventName = sheet?.name || "ATTENDANCE";
-        const eventTitle = formatWordEventTitle(eventName);
-        const yearLevel = formatWordYearLevel(eventName);
-        const dateText = formatWordDate(new Date());
+        const GREEN = "70AD47";
+        const BLACK = "000000";
+        const WHITE = "FFFFFF";
+        const FONT = "Roboto Condensed";
 
-        const headerBytes = dataUriToUint8Array(PSABE_ATTENDANCE_HEADER_DATA_URI);
-
-        /*
-         * The supplied format is a portrait attendance sheet.
-         * A4 page size is used to match the reference proportions.
-         */
-        const tableWidth = 9026;
         const borders = {
-            top: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-            bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-            left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-            right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-            insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-            insideVertical: { style: BorderStyle.SINGLE, size: 6, color: "000000" }
+            top: { style: BorderStyle.SINGLE, size: 6, color: BLACK },
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: BLACK },
+            left: { style: BorderStyle.SINGLE, size: 6, color: BLACK },
+            right: { style: BorderStyle.SINGLE, size: 6, color: BLACK },
+            insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: BLACK },
+            insideVertical: { style: BorderStyle.SINGLE, size: 6, color: BLACK }
         };
 
-        const cellWidths = [564, 1558, 3766, 1524, 1604];
+        const makeCell = (text, widthTwips, options = {}) => new TableCell({
+            width: { size: widthTwips, type: WidthType.DXA },
+            verticalAlign: VerticalAlign.CENTER,
+            shading: options.header ? { type: ShadingType.CLEAR, fill: GREEN } : undefined,
+            borders,
+            margins: { top: 35, bottom: 35, left: 45, right: 45 },
+            children: [new Paragraph({
+                alignment: options.align || AlignmentType.LEFT,
+                spacing: { before: 0, after: 0, line: 200 },
+                children: [new TextRun({
+                    text: String(text ?? ""),
+                    font: FONT,
+                    size: (options.size || 10) * 2,
+                    bold: !!options.header || !!options.bold,
+                    color: BLACK
+                })]
+            })]
+        });
 
-        function makeCell(text, width, options = {}) {
-            const {
-                bold = false,
-                header = false,
-                align = AlignmentType.LEFT
-            } = options;
-
-            return new TableCell({
-                width: { size: width, type: WidthType.DXA },
-                verticalAlign: VerticalAlign.CENTER,
-                shading: header ? {
-                    type: ShadingType.CLEAR,
-                    fill: "70AD47"
-                } : undefined,
-                margins: {
-                    top: 45,
-                    bottom: 45,
-                    left: 60,
-                    right: 60
-                },
-                children: [
-                    new Paragraph({
-                        alignment: align,
-                        spacing: { before: 0, after: 0, line: 180 },
-                        children: [
-                            new TextRun({
-                                text: String(text ?? ""),
-                                bold: bold || header,
-                                font: "Roboto Condensed",
-                                size: 12,
-                                color: header ? "000000" : "000000"
-                            })
-                        ]
-                    })
-                ]
-            });
-        }
-
+        const widths = [500, 1450, 1150, 2850, 1550, 1566];
         const headerRow = new TableRow({
             tableHeader: true,
+            cantSplit: true,
             children: [
-                makeCell("NO.", cellWidths[0], { header: true, align: AlignmentType.CENTER }),
-                makeCell("ID NO.", cellWidths[1], { header: true, align: AlignmentType.CENTER }),
-                makeCell("NAME", cellWidths[2], { header: true, align: AlignmentType.CENTER }),
-                makeCell("IN", cellWidths[3], { header: true, align: AlignmentType.CENTER }),
-                makeCell("OUT", cellWidths[4], { header: true, align: AlignmentType.CENTER })
+                makeCell("NO.", widths[0], { header: true, align: AlignmentType.CENTER }),
+                makeCell("ID NO.", widths[1], { header: true, align: AlignmentType.CENTER }),
+                makeCell("YEAR LEVEL", widths[2], { header: true, align: AlignmentType.CENTER }),
+                makeCell("NAME", widths[3], { header: true, align: AlignmentType.CENTER }),
+                makeCell("IN", widths[4], { header: true, align: AlignmentType.CENTER }),
+                makeCell("OUT", widths[5], { header: true, align: AlignmentType.CENTER })
             ]
         });
 
         const rows = [headerRow];
-
-        /*
-         * Keep the sheet visually similar to the supplied format:
-         * at least 35 attendance rows are shown, with blank rows after
-         * the actual attendees when there are fewer than 35.
-         */
         const minimumRows = Math.max(35, records.length);
-
         for (let i = 0; i < minimumRows; i++) {
             const record = records[i];
-
             rows.push(new TableRow({
-                height: { value: 255, rule: "atLeast" },
+                cantSplit: true,
                 children: [
-                    makeCell(record ? String(i + 1) : "", cellWidths[0], { align: AlignmentType.CENTER }),
-                    makeCell(record ? (record.studentId || "") : "", cellWidths[1], { align: AlignmentType.CENTER }),
-                    makeCell(record ? (record.studentName || "") : "", cellWidths[2], { align: AlignmentType.LEFT }),
-                    makeCell(record ? (record.timeIn || "") : "", cellWidths[3], { align: AlignmentType.CENTER }),
-                    makeCell(record ? (record.timeOut || "") : "", cellWidths[4], { align: AlignmentType.CENTER })
+                    makeCell(record ? String(i + 1) : "", widths[0], { align: AlignmentType.CENTER }),
+                    makeCell(record ? (record.studentId || "") : "", widths[1], { align: AlignmentType.CENTER }),
+                    makeCell(record ? displayYearLevel(getRecordYearLevel(record)) : "", widths[2], { align: AlignmentType.CENTER, size: 9 }),
+                    makeCell(record ? (record.studentName || "") : "", widths[3], { align: AlignmentType.LEFT }),
+                    makeCell(record ? (record.timeIn || "") : "", widths[4], { align: AlignmentType.CENTER }),
+                    makeCell(record ? (record.timeOut || "") : "", widths[5], { align: AlignmentType.CENTER })
                 ]
             }));
         }
 
-        const attendanceTable = new Table({
-            width: { size: tableWidth, type: WidthType.DXA },
-            columnWidths: cellWidths,
-            borders,
-            rows
+        /*
+         * THIS IS THE ACTUAL WORD HEADER.
+         * The image lives in Header.children, not Document.children.
+         */
+        const header = new Header({
+            children: [
+                new Paragraph({
+                    alignment: AlignmentType.LEFT,
+                    spacing: { before: 0, after: 0, line: 240 },
+                    children: [new ImageRun({
+                        type: "png",
+                        data: headerBytes,
+                        transformation: {
+                            width: 763,
+                            height: 167
+                        }
+                    })]
+                })
+            ]
         });
 
-        const wordDocument = new Document({
+        const document = new Document({
+            creator: "PSABE-PPG CSU Chapter Attendance System",
+            title: `${eventTitle} Attendance`,
+            description: "PSABE-PPG CSU Chapter Attendance Sheet",
             sections: [{
                 properties: {
                     page: {
                         size: {
-                            width: 11906,
-                            height: 16838
+                            width: convertInchesToTwip(8.27),
+                            height: convertInchesToTwip(11.69),
+                            orientation: PageOrientation.PORTRAIT
                         },
                         margin: {
-                            top: 2700,
-                            right: 1440,
-                            bottom: 1440,
-                            left: 1440
+                            top: convertInchesToTwip(2.20),
+                            right: convertInchesToTwip(1.0),
+                            bottom: convertInchesToTwip(1.0),
+                            left: convertInchesToTwip(1.0),
+                            header: convertInchesToTwip(0.20),
+                            footer: convertInchesToTwip(0.5)
                         }
-                    },
-                    headerDistance: 180
+                    }
                 },
                 headers: {
-                    default: new Header({
-                        children: [
-                            new Paragraph({
-                                alignment: AlignmentType.LEFT,
-                                indent: { left: -180 },
-                                spacing: { before: 0, after: 0 },
-                                children: [
-                                    new ImageRun({
-                                        data: headerBytes,
-                                        transformation: {
-                                            width: 762,
-                                            height: 167
-                                        },
-                                        type: "png"
-                                    })
-                                ]
-                            })
-                        ]
-                    })
+                    default: header
                 },
                 children: [
                     new Paragraph({
                         alignment: AlignmentType.CENTER,
-                        spacing: { before: 0, after: 0 },
                         keepNext: true,
-                        children: [
-                            new TextRun({
-                                text: eventTitle,
-                                bold: true,
-                                font: "Roboto Condensed",
-                                size: 14
-                            })
-                        ]
+                        spacing: { before: 0, after: 0, line: 260 },
+                        children: [new TextRun({
+                            text: eventTitle,
+                            font: FONT,
+                            size: 28,
+                            bold: true,
+                            color: BLACK
+                        })]
                     }),
-
                     new Paragraph({
                         alignment: AlignmentType.CENTER,
-                        spacing: { before: 0, after: 0 },
                         keepNext: true,
-                        children: [
-                            new TextRun({
-                                text: yearLevel,
-                                bold: true,
-                                font: "Roboto Condensed",
-                                size: 11
-                            })
-                        ]
+                        spacing: { before: 0, after: 250, line: 240 },
+                        children: [new TextRun({
+                            text: yearLevel,
+                            font: FONT,
+                            size: 22,
+                            bold: true,
+                            color: BLACK
+                        })]
                     }),
-
                     new Paragraph({
                         alignment: AlignmentType.LEFT,
-                        spacing: { before: 0, after: 0 },
-                        children: []
-                    }),
-
-                    new Paragraph({
-                        alignment: AlignmentType.LEFT,
-                        spacing: { before: 0, after: 0 },
                         keepNext: true,
-                        children: [
-                            new TextRun({
-                                text: "DATE: ",
-                                bold: true,
-                                font: "Roboto Condensed",
-                                size: 12
-                            }),
-                            new TextRun({
-                                text: dateText,
-                                bold: true,
-                                font: "Roboto Condensed",
-                                size: 12
-                            })
-                        ]
+                        spacing: { before: 0, after: 120, line: 240 },
+                        children: [new TextRun({
+                            text: `DATE: ${dateText}`,
+                            font: FONT,
+                            size: 24,
+                            bold: true,
+                            color: BLACK
+                        })]
                     }),
-
-                    new Paragraph({
-                        alignment: AlignmentType.LEFT,
-                        spacing: { before: 0, after: 0 },
-                        children: []
-                    }),
-
-                    attendanceTable
+                    new Table({
+                        width: { size: widths.reduce((a, b) => a + b, 0), type: WidthType.DXA },
+                        layout: "fixed",
+                        borders,
+                        rows
+                    })
                 ]
             }]
         });
 
-        const blob = await Packer.toBlob(wordDocument);
-
+        const blob = await Packer.toBlob(document);
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-
-        const safeEventName = String(eventName)
-            .replace(/[\\/:*?"<>|]+/g, "")
-            .trim() || "Attendance";
-
+        const safeEventName = String(eventName).replace(/[\\/:*?"<>|]+/g, "").trim() || "Attendance";
         link.download = safeEventName + "-Attendance.docx";
-
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
 
-        URL.revokeObjectURL(url);
-
-        showMessage("Attendance Word file exported successfully.", "success");
+        showMessage("Attendance Word file exported successfully with the reference header in the Word Header section.", "success");
     } catch (error) {
-        console.error("DOCX export error. Falling back to Word-compatible document:", error);
-        try {
-            exportWordCompatibleDocument();
-        } catch (fallbackError) {
-            console.error("Word-compatible export error:", fallbackError);
-            showMessage("Unable to create the Word attendance file. Please try again.", "error");
-        }
+        console.error("DOCX export error:", error);
+        showMessage("Unable to create the Word attendance file. Please try again.", "error");
     }
 }
 
-/*
- * Offline-safe fallback. This creates a Microsoft Word-compatible .doc file
- * directly in the browser, so the export still works even when the external
- * DOCX library cannot be loaded by GitHub Pages, a browser, or a network.
- */
 function exportWordCompatibleDocument() {
     const records = getWordExportRecords();
 
@@ -4186,6 +4223,7 @@ function exportWordCompatibleDocument() {
         <tr>
             <td>${index + 1}</td>
             <td>${escapeWordHtml(record.studentId || "")}</td>
+            <td>${escapeWordHtml(displayYearLevel(getRecordYearLevel(record)))}</td>
             <td class="name">${escapeWordHtml(record.studentName || "")}</td>
             <td>${escapeWordHtml(record.timeIn || "")}</td>
             <td>${escapeWordHtml(record.timeOut || "")}</td>
@@ -4197,7 +4235,7 @@ function exportWordCompatibleDocument() {
     for (let i = 0; i < blankRowCount; i++) {
         blankRows += `
             <tr>
-                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
             </tr>`;
     }
 
@@ -4292,8 +4330,9 @@ function exportWordCompatibleDocument() {
     td { text-align: center; }
     td.name { text-align: left; }
     .no { width: 6.25%; }
-    .id { width: 17.27%; }
-    .namecol { width: 41.76%; }
+    .id { width: 15%; }
+    .yearcol { width: 12%; }
+    .namecol { width: 31%; }
     .time { width: 16.88%; }
 </style>
 </head>
@@ -4309,10 +4348,10 @@ function exportWordCompatibleDocument() {
         <div class="date">DATE: ${escapeWordHtml(dateText)}</div>
         <table>
             <colgroup>
-                <col class="no"><col class="id"><col class="namecol"><col class="time"><col class="time">
+                <col class="no"><col class="id"><col class="yearcol"><col class="namecol"><col class="time"><col class="time">
             </colgroup>
             <thead>
-                <tr><th>NO.</th><th>ID NO.</th><th>NAME</th><th>IN</th><th>OUT</th></tr>
+                <tr><th>NO.</th><th>ID NO.</th><th>YEAR LEVEL</th><th>NAME</th><th>IN</th><th>OUT</th></tr>
             </thead>
             <tbody>${rows}${blankRows}</tbody>
         </table>
@@ -4888,9 +4927,14 @@ updateActiveSheetUI();
     el.innerHTML=records.map(r=>{
       const status=(r.status||calculateLocalStatus(r.timeIn,r.timeOut)||"PRESENT").toUpperCase();
       const cls=status==="COMPLETED"?"completed":status==="INCOMPLETE"?"incomplete":"present";
+      const yearLevel = displayYearLevel(getRecordYearLevel(r));
+      if (!getRecordYearLevel(r) && navigator.onLine) {
+        enrichRecordYearLevel(r).then(()=>renderRecentAttendance());
+      }
       return `<div class="recent-row">
         <span class="person-name">${escapeHTML(r.studentName||"Name unavailable")}</span>
         <span class="student-id-cell">${escapeHTML(r.studentId||"—")}</span>
+        <span class="year-level-cell">${escapeHTML(yearLevel)}</span>
         <span class="status-cell"><span class="badge ${cls}">${status==="INCOMPLETE"?"INCOMPLETE/LATE":status}</span></span>
       </div>`;
     }).join("");
@@ -5182,10 +5226,16 @@ window.addEventListener("load", function(){
 
         const label=status==="INCOMPLETE" ? "INCOMPLETE/LATE" : status;
 
+        const yearLevel = displayYearLevel(getRecordYearLevel(r));
+        if (!getRecordYearLevel(r) && navigator.onLine) {
+          enrichRecordYearLevel(r).then(()=>window.openAllRecentAttendance());
+        }
+
         return `<div class="all-attendee-row">
           <span class="all-attendee-no">${index+1}</span>
           <span class="all-attendee-name">${escapeHTML(r.studentName || "Name unavailable")}</span>
           <span class="all-attendee-id">${escapeHTML(r.studentId || "—")}</span>
+          <span class="all-attendee-year">${escapeHTML(yearLevel)}</span>
           <span class="all-attendee-status"><span class="badge ${cls}">${label}</span></span>
         </div>`;
       }).join("");
