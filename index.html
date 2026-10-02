@@ -2346,83 +2346,125 @@ function showStudentPreview(studentId, studentName, detail) {
 }
 
 async function loadServerAttendanceSheets() {
-    if (!navigator.onLine) return;
-
-    try {
-        const response = await fetch(SCRIPT_URL + "?action=listSheets&_=" + Date.now());
-        if (!response.ok) return;
-        const result = await response.json();
-        if (!result || result.success !== true || !Array.isArray(result.sheets)) return;
-
-        // A global clear is authoritative. If another device cleared all
-        // event sheets, discard this device's cached attendance as well.
-        const serverClearVersion = String(result.clearVersion || "");
-        const localClearVersion = String(localStorage.getItem("psabe_global_clear_version") || "");
-        if (serverClearVersion && serverClearVersion !== localClearVersion) {
-            attendanceRecords = [];
-            saveRecords();
-            localStorage.setItem("psabe_global_clear_version", serverClearVersion);
-            if (typeof displayAttendance === "function") displayAttendance();
-            if (typeof renderRecentAttendance === "function") renderRecentAttendance();
-            if (typeof updateScreenshotStats === "function") updateScreenshotStats();
-        }
-
-        const oldActive = getActiveSheet();
-        const oldActiveName = oldActive ? oldActive.name : "";
-
-        result.sheets.forEach(serverSheet => {
-            // A sheet deleted from the app is only hidden locally.
-            // Never re-add it from the Google Sheets list on reload.
-            if (isAttendanceSheetHidden(serverSheet)) return;
-
-            const serverId = "gs-" + serverSheet.sheetId;
-            let local = attendanceSheets.find(s =>
-                s.googleSheetId === String(serverSheet.sheetId) ||
-                s.id === serverId ||
-                s.name === serverSheet.sheetName
-            );
-
-            if (!local) {
-                local = {
-                    id: serverId,
-                    googleSheetId: String(serverSheet.sheetId),
-                    name: serverSheet.sheetName,
-                    venue: serverSheet.venue || "",
-                    createdAt: serverSheet.createdAt || new Date().toISOString()
-                };
-                attendanceSheets.push(local);
-            } else {
-                const previousId = local.id;
-                local.id = serverId;
-                local.googleSheetId = String(serverSheet.sheetId);
-                local.name = serverSheet.sheetName;
-                if (serverSheet.venue) local.venue = serverSheet.venue;
-                if (serverSheet.createdAt) local.createdAt = serverSheet.createdAt;
-
-                // Migrate any local records that were tied to the temporary sheet id.
-                attendanceRecords.forEach(r => {
-                    if (r.sheetId === previousId) {
-                        r.sheetId = serverId;
-                        r.sheetName = serverSheet.sheetName;
-                    }
-                });
-            }
-        });
-
-        if (oldActiveName) {
-            const matching = attendanceSheets.find(s => s.name === oldActiveName);
-            if (matching) activeSheetId = matching.id;
-        }
-
-        saveAttendanceSheets();
-        saveRecords();
-        updateActiveSheetUI();
-        displayAttendance();
-        renderAttendanceSheets();
-    } catch (error) {
-        console.warn("Unable to load attendance sheets from Google Sheets:", error);
-    }
+    return loadSharedAttendanceState();
 }
+
+async function loadSharedAttendanceState(force = false) {
+    if (!navigator.onLine) return false;
+
+    const now = Date.now();
+    if (!force && window.__attendanceStatePromise && now - (window.__attendanceStateAt || 0) < 1500) {
+        return window.__attendanceStatePromise;
+    }
+
+    window.__attendanceStateAt = now;
+    window.__attendanceStatePromise = (async function() {
+        try {
+            const url = SCRIPT_URL + '?action=GET_STATE&date=' + encodeURIComponent(getToday()) + '&_=' + Date.now();
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) return false;
+            const result = await response.json();
+            if (!result || result.success !== true) return false;
+
+            const serverClearVersion = String(result.clearVersion || '');
+            const localClearVersion = String(localStorage.getItem('psabe_global_clear_version') || '');
+            if (serverClearVersion && serverClearVersion !== localClearVersion) {
+                attendanceRecords = [];
+                saveRecords();
+                localStorage.setItem('psabe_global_clear_version', serverClearVersion);
+            }
+
+            const oldActiveName = (getActiveSheet() || {}).name || '';
+            const serverSheets = Array.isArray(result.sheets) ? result.sheets : [];
+
+            serverSheets.forEach(serverSheet => {
+                if (isAttendanceSheetHidden(serverSheet)) return;
+                const serverId = 'gs-' + serverSheet.id;
+                let local = attendanceSheets.find(s =>
+                    s.googleSheetId === String(serverSheet.id) ||
+                    s.id === serverId ||
+                    s.name === serverSheet.name
+                );
+
+                if (!local) {
+                    local = {
+                        id: serverId,
+                        googleSheetId: String(serverSheet.id),
+                        name: serverSheet.name,
+                        venue: serverSheet.venue || '',
+                        createdAt: serverSheet.createdAt || new Date().toISOString()
+                    };
+                    attendanceSheets.push(local);
+                } else {
+                    const previousId = local.id;
+                    local.id = serverId;
+                    local.googleSheetId = String(serverSheet.id);
+                    local.name = serverSheet.name;
+                    if (serverSheet.venue) local.venue = serverSheet.venue;
+                    if (serverSheet.createdAt) local.createdAt = serverSheet.createdAt;
+                    if (previousId !== serverId) {
+                        attendanceRecords.forEach(r => {
+                            if (r.sheetId === previousId) {
+                                r.sheetId = serverId;
+                                r.sheetName = serverSheet.name;
+                            }
+                        });
+                    }
+                }
+            });
+
+            if (oldActiveName) {
+                const matching = attendanceSheets.find(s => s.name === oldActiveName);
+                if (matching) activeSheetId = matching.id;
+            }
+
+            saveAttendanceSheets();
+
+            // Merge today's shared records directly from the single GET_STATE call.
+            const serverRecords = Array.isArray(result.records) ? result.records : [];
+            const localMap = new Map();
+            attendanceRecords.forEach(r => {
+                const key = String(r.sheetId || '') + '|' + String(r.studentId || '').trim().toUpperCase() + '|' + String(r.date || '');
+                localMap.set(key, r);
+            });
+
+            serverRecords.forEach(serverRecord => {
+                const serverSheetId = 'gs-' + String(serverRecord.sheetId || '');
+                const key = serverSheetId + '|' + String(serverRecord.studentId || '').trim().toUpperCase() + '|' + String(serverRecord.date || '');
+                const local = localMap.get(key);
+                if (!local) {
+                    attendanceRecords.push({
+                        ...serverRecord,
+                        sheetId: serverSheetId,
+                        sheetName: serverRecord.sheetName || '',
+                        synced: true
+                    });
+                } else if (local.synced === true || serverRecord.timeOut) {
+                    Object.assign(local, serverRecord, { sheetId: serverSheetId, synced: true });
+                }
+            });
+
+            normalizeAttendanceRecords();
+            saveRecords();
+            updateActiveSheetUI();
+            displayAttendance();
+            if (typeof renderRecentAttendance === 'function') renderRecentAttendance();
+            if (typeof updateScreenshotStats === 'function') updateScreenshotStats();
+            return true;
+        } catch (error) {
+            console.warn('Unable to load shared attendance state:', error);
+            return false;
+        }
+    })();
+
+    try { return await window.__attendanceStatePromise; }
+    finally { window.__attendanceStatePromise = null; }
+}
+
+async function loadServerRecordsForActiveSheet() {
+    return loadSharedAttendanceState();
+}
+
 
 function normalizeAttendanceRecords() {
     if (!Array.isArray(attendanceRecords) || !attendanceRecords.length) return false;
@@ -3476,248 +3518,104 @@ function calculateLocalStatus(timeIn, timeOut) {
    OFFLINE-FIRST + AUTOMATIC RETRY
 ===================================================== */
 
-async function syncSingleRecord(record) {
-    if (!record || record.synced === true || !navigator.onLine) return false;
-
-    try {
-        const recordSheet = attendanceSheets.find(s => s.id === record.sheetId) || getActiveSheet();
-        const payload = {
-            studentId: record.studentId,
-            action: record.timeOut ? "TIME OUT" : "TIME IN",
-            date: record.date,
-            timeIn: record.timeIn || "",
-            timeOut: record.timeOut || "",
-            remark: record.remark || "",
-            status: record.status || calculateLocalStatus(record.timeIn, record.timeOut),
-            sectoralGroups: Array.isArray(record.sectoralGroups) ? record.sectoralGroups : [],
-            // Google Sheets gets one Sectoral Group column containing the
-            // actual group name, e.g. "4PS". Multiple selections are stored
-            // as their actual names separated by commas.
-            sectoralGroup: Array.isArray(record.sectoralGroups)
-                ? record.sectoralGroups.filter(Boolean).join(", ")
-                : String(record.sectoralGroups || ""),
-            sex: record.sex || "",
-            eventName: record.sheetName || (recordSheet ? recordSheet.name : "Attendance"),
-            venue: recordSheet && recordSheet.venue ? String(recordSheet.venue) : "",
-            sheetId: recordSheet && recordSheet.googleSheetId ? String(recordSheet.googleSheetId) : "",
-            clearVersion: record.clearVersion || localStorage.getItem("psabe_global_clear_version") || "0"
-        };
-
-        const result = await postToAppsScript(payload);
-        console.log("Google Sheets response:", result);
-
-        if (result && result.staleAfterGlobalClear) {
-            if (result.clearVersion) {
-                localStorage.setItem("psabe_global_clear_version", String(result.clearVersion));
-            }
-            attendanceRecords = attendanceRecords.filter(r => r !== record);
-            saveRecords();
-            displayAttendance();
-            if (typeof renderRecentAttendance === "function") renderRecentAttendance();
-            if (typeof updateScreenshotStats === "function") updateScreenshotStats();
-            showMessage("An old offline attendance record was removed after a global clear.", "info");
-            return true;
-        }
-
-        if (result && result.success === true) {
-            // Keep the actual Google Sheet identity on the local sheet.
-            const localSheet = attendanceSheets.find(s => s.id === record.sheetId);
-            if (localSheet && result.eventSheetId) {
-                const wasActive = activeSheetId === localSheet.id;
-                const oldId = localSheet.id;
-                localSheet.googleSheetId = String(result.eventSheetId);
-                localSheet.id = "gs-" + String(result.eventSheetId);
-                localSheet.name = result.eventSheet || localSheet.name;
-                attendanceRecords.forEach(r => {
-                    if (r.sheetId === oldId) {
-                        r.sheetId = localSheet.id;
-                        r.sheetName = localSheet.name;
-                    }
-                });
-                if (wasActive) activeSheetId = localSheet.id;
-                saveAttendanceSheets();
-                saveRecords();
-                updateActiveSheetUI();
-            }
-
-            record.studentName = result.studentName || result.fullName || result.name || result.participantName || record.studentName;
-            record.yearLevel = result.yearLevel || result.year_level || result.year || record.yearLevel || "";
-            if (record.yearLevel) {
-                const cacheId = String(record.studentId || "").trim().toUpperCase();
-                if (cacheId) {
-                    studentYearLevelCache[cacheId] = record.yearLevel;
-                    saveStudentYearLevelCache();
-                }
-            }
-            record.synced = true;
-            record.status = result.status || record.status;
-            saveRecords();
-            displayAttendance();
-            if (typeof renderRecentAttendance === "function") renderRecentAttendance();
-
-            return true;
-        }
-
-        console.warn("Google Sheets rejected record:", result ? result.message : "Unknown response");
-        if (result && result.message) showMessage(result.message, "error");
-        return false;
-    } catch (error) {
-        console.warn("Synchronization failed. Record remains pending:", record.studentId, error);
-        return false;
+function getSyncDeviceId() {
+    let id = localStorage.getItem('psabe_sync_device_id');
+    if (!id) {
+        id = 'device-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('psabe_sync_device_id', id);
     }
+    return id;
 }
 
-
-/* =====================================================
-   SYNCHRONIZE ALL PENDING RECORDS
-===================================================== */
+async function syncSingleRecord(record) {
+    if (!record || record.synced === true || !navigator.onLine || !SCRIPT_URL) return false;
+    await syncOfflineRecords();
+    return record.synced === true;
+}
 
 async function syncOfflineRecords() {
+    if (!navigator.onLine || isSyncing) return false;
 
-    if (!navigator.onLine) {
-        return;
-    }
-
-    if (isSyncing) {
-        return;
-    }
-
-    const pendingRecords = attendanceRecords.filter(
-        record => record.synced !== true
-    );
-
-    if (pendingRecords.length === 0) {
-        return;
-    }
+    const pendingRecords = attendanceRecords.filter(record => record && record.synced !== true);
+    if (!pendingRecords.length) return true;
 
     isSyncing = true;
-
     try {
-
-        console.log(
-            "Starting synchronization of " +
-            pendingRecords.length +
-            " pending record(s)."
-        );
-
-        let successful = 0;
-        let failed = 0;
-
-        /*
-         * IMPORTANT:
-         * Do NOT stop the queue when one record fails.
-         * Every pending record gets an opportunity to sync.
-         */
-        for (const record of pendingRecords) {
-
-            if (!navigator.onLine) {
-                break;
-            }
-
-            const success = await syncSingleRecord(record);
-
-            if (success) {
-                successful++;
-            }
-            else {
-                failed++;
-            }
-
-            /* Small delay between requests. */
-            await new Promise(
-                resolve => setTimeout(resolve, 300)
+        const records = pendingRecords.map((record, index) => {
+            const recordSheet = attendanceSheets.find(s => s.id === record.sheetId) || getActiveSheet();
+            record._syncKey = record._syncKey || (
+                String(record.sheetId || '') + '|' +
+                String(record.studentId || '').trim().toUpperCase() + '|' +
+                String(record.date || '')
             );
-        }
+            return {
+                clientKey: record._syncKey + '|' + index,
+                studentId: record.studentId,
+                action: record.timeOut ? 'TIME OUT' : 'TIME IN',
+                date: record.date,
+                timeIn: record.timeIn || '',
+                timeOut: record.timeOut || '',
+                remark: record.remark || '',
+                status: record.status || calculateLocalStatus(record.timeIn, record.timeOut),
+                sectoralGroups: Array.isArray(record.sectoralGroups) ? record.sectoralGroups : [],
+                sectoralGroup: Array.isArray(record.sectoralGroups) ? record.sectoralGroups.filter(Boolean).join(', ') : String(record.sectoralGroups || ''),
+                sex: record.sex || '',
+                eventName: record.sheetName || (recordSheet ? recordSheet.name : 'Attendance'),
+                eventId: recordSheet && recordSheet.googleSheetId ? String(recordSheet.googleSheetId) : (recordSheet ? String(recordSheet.id || '') : ''),
+                venue: recordSheet && recordSheet.venue ? String(recordSheet.venue) : '',
+                sheetId: recordSheet && recordSheet.googleSheetId ? String(recordSheet.googleSheetId) : '',
+                clearVersion: record.clearVersion || localStorage.getItem('psabe_global_clear_version') || '0',
+                deviceId: getSyncDeviceId()
+            };
+        });
 
+        const result = await postToAppsScript({ action: 'SYNC_BATCH', records });
+        if (!result || result.success !== true || !Array.isArray(result.results)) return false;
+
+        result.results.forEach(item => {
+            const response = item && item.result ? item.result : {};
+            const original = pendingRecords.find(r =>
+                ((r._syncKey || (String(r.sheetId || '') + '|' + String(r.studentId || '').trim().toUpperCase() + '|' + String(r.date || ''))) + '|' + pendingRecords.indexOf(r)) === String(item.clientKey || '')
+            );
+            if (!original) return;
+
+            if (response.staleAfterGlobalClear) {
+                attendanceRecords = attendanceRecords.filter(r => r !== original);
+                return;
+            }
+
+            if (response.success === true) {
+                if (response.record) {
+                    original.studentName = response.record.studentName || original.studentName;
+                    original.yearLevel = response.record.yearLevel || original.yearLevel || '';
+                    original.status = response.record.status || original.status;
+                }
+                original.synced = true;
+            }
+        });
+
+        saveRecords();
         displayAttendance();
+        if (typeof renderRecentAttendance === 'function') renderRecentAttendance();
+        if (typeof updateScreenshotStats === 'function') updateScreenshotStats();
 
-        const remaining = attendanceRecords.filter(
-            record => record.synced !== true
-        ).length;
-
-        console.log(
-            "Synchronization complete. Successful:",
-            successful,
-            "Failed:",
-            failed,
-            "Remaining:",
-            remaining
-        );
-
-        if (remaining === 0 && successful > 0) {
-
-            showMessage(
-                "All attendance records synchronized successfully.",
-                "success"
-            );
-
-        }
-        else if (successful > 0) {
-
-            showMessage(
-                successful +
-                " record(s) synchronized. " +
-                remaining +
-                " record(s) still pending.",
-                "info"
-            );
-
-        }
-        else if (remaining > 0) {
-
-            console.log(
-                remaining +
-                " record(s) remain pending and will be retried automatically."
-            );
-        }
-
-    }
-    catch (error) {
-
-        console.error(
-            "Synchronization process error:",
-            error
-        );
-
-    }
-    finally {
+        const remaining = attendanceRecords.some(r => r.synced !== true);
+        if (!remaining) showMessage('Attendance synchronized successfully.', 'success');
+        return !remaining;
+    } catch (error) {
+        console.warn('Batch synchronization failed. Records remain pending:', error);
+        return false;
+    } finally {
         isSyncing = false;
     }
 }
 
-
-/* =====================================================
-   AUTOMATIC RETRY
-===================================================== */
-
-const SYNC_RETRY_INTERVAL = 10000;
-
-setInterval(
-    function() {
-
-        if (!navigator.onLine) {
-            return;
-        }
-
-        // Poll the server for a global local-storage clear. This allows
-        // every device that is online to clear its own local records.
-        loadServerAttendanceSheets().then(() => {
-            const hasPending = attendanceRecords.some(
-                record => record.synced !== true
-            );
-
-            if (hasPending) {
-                console.log("Automatic retry: pending records detected.");
-                syncOfflineRecords();
-            }
-        }).catch(error => {
-            console.warn("Background global-clear check failed:", error);
-        });
-
-    },
-    SYNC_RETRY_INTERVAL
-);
-
+/* Retry only the local queue. Server-state polling is handled separately. */
+const SYNC_RETRY_INTERVAL = 15000;
+setInterval(function() {
+    if (!navigator.onLine) return;
+    syncOfflineRecords();
+}, SYNC_RETRY_INTERVAL);
 
 /* =====================================================
    MULTI-TAB STORAGE SYNCHRONIZATION
@@ -5884,14 +5782,19 @@ updateActiveSheetUI();
   window.addEventListener("load", async ()=>{
     renderRecentAttendance();
     updateScreenshotStats();
-    await loadServerAttendanceSheets();
-    await loadServerRecordsForActiveSheet();
+    // Display local data immediately; shared state loads in the background.
+    loadSharedAttendanceState(true);
+    syncOfflineRecords();
   });
   window.addEventListener("online",async()=>{
-    await loadServerAttendanceSheets();
-    await loadServerRecordsForActiveSheet();
     await syncOfflineRecords();
+    await loadSharedAttendanceState(true);
   });
+
+  // Lightweight multi-device refresh. It retrieves today's shared state, not every historical sheet.
+  setInterval(function(){
+    if (navigator.onLine) loadSharedAttendanceState(false);
+  }, 15000);
 })();
 
 // Restore the saved attendance mode and sync the Settings toggle after the page loads.
